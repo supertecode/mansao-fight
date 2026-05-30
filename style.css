@@ -1,0 +1,64 @@
+/* ===========================================================================
+   Mansão Fight — estilos da página
+   Todo o jogo é renderizado no <canvas>; o CSS só centraliza e estiliza a
+   moldura, além de uma caixa de aviso usada quando o manifest não carrega.
+   =========================================================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  background: #0a0a0f;
+  /* Evita seleção de texto / barra de rolagem durante a jogatina. */
+  overflow: hidden;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* Centraliza a moldura na tela. */
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#moldura {
+  position: relative;
+  /* Mantém a proporção 16:9 do canvas, ocupando o máximo disponível. */
+  width: min(96vw, 170.6vh);
+  aspect-ratio: 16 / 9;
+  border: 3px solid #2b2b3a;
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+  background: #000;
+}
+
+#tela {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Pixels nítidos ao escalar (estética retrô). */
+  image-rendering: pixelated;
+}
+
+/* Caixa de aviso (ex.: manifest bloqueado por CORS no file://). */
+#aviso {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 40px;
+  color: #ffd34d;
+  background: rgba(0, 0, 0, 0.92);
+  font-size: 18px;
+  line-height: 1.6;
+}
+
+.oculto {
+  display: none !important;
+}

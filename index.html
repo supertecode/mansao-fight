@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mansão Fight — Samuel vs Vitor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Moldura do jogo. Todo o desenho acontece dentro do <canvas>. -->
+  <div id="moldura">
+    <canvas id="tela" width="960" height="540"></canvas>
+    <!-- Aviso exibido apenas se o manifest não puder ser carregado (ex.: file:// no Chrome). -->
+    <div id="aviso" class="oculto"></div>
+  </div>
+
+  <!-- Carrega a lógica do jogo. type=module não é usado para funcionar via file:// -->
+  <script src="game.js"></script>
+</body>
+</html>

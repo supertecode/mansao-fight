@@ -1,0 +1,193 @@
+{
+  "frameSize": [256, 256],
+  "players": {
+    "p1": {
+      "nome": "Samuel Silva",
+      "animacoes": {
+        "idle": {
+          "frames": 1,
+          "fps": 6,
+          "loop": true
+        },
+        "walk": {
+          "frames": 3,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "frames": 3,
+          "fps": 10,
+          "loop": true
+        },
+        "punch": {
+          "frames": 3,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "punch_step": {
+          "frames": 3,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "kick": {
+          "frames": 2,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [1]
+        },
+        "kick_mid": {
+          "frames": 2,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [1]
+        },
+        "kick_jump": {
+          "frames": 1,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [0]
+        },
+        "fireball": {
+          "frames": 3,
+          "fps": 10,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "ko": {
+          "frames": 1,
+          "fps": 6,
+          "loop": false
+        },
+        "item": {
+          "frames": 2,
+          "fps": 8,
+          "loop": false
+        },
+        "block": {
+          "frames": 1,
+          "fps": 8,
+          "loop": false
+        },
+        "hit": {
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "knockdown": {
+          "frames": 1,
+          "fps": 8,
+          "loop": false
+        },
+        "getup": {
+          "frames": 2,
+          "fps": 8,
+          "loop": false
+        },
+        "taunt": {
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        }
+      }
+    },
+    "p2": {
+      "nome": "Vitor De Sordi",
+      "animacoes": {
+        "idle": {
+          "frames": 1,
+          "fps": 6,
+          "loop": true
+        },
+        "walk": {
+          "frames": 3,
+          "fps": 8,
+          "loop": true
+        },
+        "run": {
+          "frames": 3,
+          "fps": 10,
+          "loop": true
+        },
+        "punch": {
+          "frames": 3,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "punch_step": {
+          "frames": 3,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "kick": {
+          "frames": 2,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [1]
+        },
+        "kick_mid": {
+          "frames": 2,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [1]
+        },
+        "kick_jump": {
+          "frames": 1,
+          "fps": 12,
+          "loop": false,
+          "framesAtivos": [0]
+        },
+        "fireball": {
+          "frames": 3,
+          "fps": 10,
+          "loop": false,
+          "framesAtivos": [2]
+        },
+        "ko": {
+          "frames": 1,
+          "fps": 6,
+          "loop": false
+        },
+        "item": {
+          "frames": 2,
+          "fps": 8,
+          "loop": false
+        },
+        "block": {
+          "frames": 1,
+          "fps": 8,
+          "loop": false
+        },
+        "hit": {
+          "frames": 2,
+          "fps": 10,
+          "loop": false
+        },
+        "knockdown": {
+          "frames": 1,
+          "fps": 8,
+          "loop": false
+        },
+        "getup": {
+          "frames": 2,
+          "fps": 8,
+          "loop": false
+        },
+        "taunt": {
+          "frames": 3,
+          "fps": 6,
+          "loop": false
+        },
+        "special": {
+          "frames": 1,
+          "fps": 10,
+          "loop": false,
+          "framesAtivos": [0]
+        }
+      }
+    }
+  }
+}
