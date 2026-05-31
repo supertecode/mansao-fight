@@ -90,6 +90,81 @@
           "fps": 6,
           "loop": false
         }
+      },
+      "golpes": {
+        "punch": {
+          "startup": 3,
+          "ativo": 3,
+          "recovery": 8,
+          "dano": 6,
+          "knockback": 120,
+          "derruba": false,
+          "alcance": [18, 112],
+          "altura": [-178, -120],
+          "cancelavel": true,
+          "tipo_altura": "alto"
+        },
+        "punch_step": {
+          "startup": 4,
+          "ativo": 3,
+          "recovery": 10,
+          "dano": 8,
+          "knockback": 150,
+          "derruba": false,
+          "alcance": [18, 126],
+          "altura": [-178, -120],
+          "cancelavel": true,
+          "tipo_altura": "alto"
+        },
+        "kick": {
+          "startup": 7,
+          "ativo": 4,
+          "recovery": 14,
+          "dano": 11,
+          "knockback": 220,
+          "derruba": true,
+          "alcance": [20, 142],
+          "altura": [-150, -92],
+          "cancelavel": false,
+          "tipo_altura": "medio"
+        },
+        "kick_mid": {
+          "startup": 6,
+          "ativo": 3,
+          "recovery": 12,
+          "dano": 9,
+          "knockback": 190,
+          "derruba": true,
+          "alcance": [20, 132],
+          "altura": [-64, 0],
+          "cancelavel": true,
+          "tipo_altura": "baixo"
+        },
+        "kick_jump": {
+          "startup": 4,
+          "ativo": 6,
+          "recovery": 8,
+          "dano": 12,
+          "knockback": 240,
+          "derruba": true,
+          "alcance": [10, 122],
+          "altura": [-185, -90],
+          "cancelavel": false,
+          "tipo_altura": "alto"
+        },
+        "agarra": {
+          "startup": 3,
+          "ativo": 2,
+          "recovery": 18,
+          "dano": 13,
+          "knockback": 290,
+          "derruba": true,
+          "alcance": [8, 76],
+          "altura": [-180, -60],
+          "cancelavel": false,
+          "ignoraBloqueio": true,
+          "tipo_altura": "medio"
+        }
       }
     },
     "p2": {
@@ -186,6 +261,81 @@
           "fps": 10,
           "loop": false,
           "framesAtivos": [0]
+        }
+      },
+      "golpes": {
+        "punch": {
+          "startup": 5,
+          "ativo": 3,
+          "recovery": 9,
+          "dano": 7,
+          "knockback": 140,
+          "derruba": false,
+          "alcance": [18, 114],
+          "altura": [-178, -120],
+          "cancelavel": true,
+          "tipo_altura": "alto"
+        },
+        "punch_step": {
+          "startup": 6,
+          "ativo": 3,
+          "recovery": 11,
+          "dano": 9,
+          "knockback": 165,
+          "derruba": false,
+          "alcance": [18, 128],
+          "altura": [-178, -120],
+          "cancelavel": true,
+          "tipo_altura": "alto"
+        },
+        "kick": {
+          "startup": 8,
+          "ativo": 4,
+          "recovery": 15,
+          "dano": 13,
+          "knockback": 250,
+          "derruba": true,
+          "alcance": [20, 146],
+          "altura": [-150, -92],
+          "cancelavel": false,
+          "tipo_altura": "medio"
+        },
+        "kick_mid": {
+          "startup": 7,
+          "ativo": 3,
+          "recovery": 13,
+          "dano": 10,
+          "knockback": 210,
+          "derruba": true,
+          "alcance": [20, 134],
+          "altura": [-64, 0],
+          "cancelavel": false,
+          "tipo_altura": "baixo"
+        },
+        "kick_jump": {
+          "startup": 5,
+          "ativo": 6,
+          "recovery": 9,
+          "dano": 14,
+          "knockback": 270,
+          "derruba": true,
+          "alcance": [10, 124],
+          "altura": [-185, -90],
+          "cancelavel": false,
+          "tipo_altura": "alto"
+        },
+        "agarra": {
+          "startup": 3,
+          "ativo": 3,
+          "recovery": 18,
+          "dano": 15,
+          "knockback": 320,
+          "derruba": true,
+          "alcance": [8, 80],
+          "altura": [-180, -60],
+          "cancelavel": false,
+          "ignoraBloqueio": true,
+          "tipo_altura": "medio"
         }
       }
     }

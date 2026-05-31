@@ -83,6 +83,7 @@ const CONFIG = {
       alcance: [18, 112],
       altura: [-178, -120],
       cancelavel: true,
+      tipo_altura: "alto", // soco na altura da cabeça/tronco
     },
     punch_step: {
       startup: 5,
@@ -94,6 +95,7 @@ const CONFIG = {
       alcance: [18, 124],
       altura: [-178, -120],
       cancelavel: true,
+      tipo_altura: "alto",
     },
     kick: {
       startup: 7,
@@ -105,7 +107,10 @@ const CONFIG = {
       alcance: [20, 140],
       altura: [-150, -92],
       cancelavel: false,
+      tipo_altura: "medio", // chute em pé na altura do tronco
     },
+    // CHUTE BAIXO (rasteira agachada): hitbox rente às pernas/pés. Só é
+    // defendido com DEFESA_BAIXA (agachado + defender). Em pé, o bloqueio falha.
     kick_mid: {
       startup: 6,
       ativo: 3,
@@ -114,8 +119,9 @@ const CONFIG = {
       knockback: 200,
       derruba: true,
       alcance: [20, 132],
-      altura: [-112, -70],
+      altura: [-64, 0], // rente ao chão (pernas/pés)
       cancelavel: false,
+      tipo_altura: "baixo",
     },
     kick_jump: {
       startup: 4,
@@ -127,6 +133,7 @@ const CONFIG = {
       alcance: [10, 122],
       altura: [-185, -90],
       cancelavel: false,
+      tipo_altura: "alto", // chute aéreo (vem de cima)
     },
     // Agarrão (usa a pose "item"): ignora defesa, derruba, curto alcance.
     agarra: {
@@ -140,6 +147,7 @@ const CONFIG = {
       altura: [-180, -60],
       cancelavel: false,
       ignoraBloqueio: true,
+      tipo_altura: "medio", // irrelevante (ignora bloqueio), mas documentado
     },
   },
 
@@ -1146,6 +1154,14 @@ class Fighter {
     // Game feel.
     this.flashTimer = 0; // duração restante do flash branco
     this.invencivel = 0; // invencibilidade de wakeup (s); sprite pisca
+
+    // --- Postura de defesa/agachamento (sistema de golpes baixos) ----------
+    // Re-derivadas a cada quadro em _processarInput (só valem em estados livres).
+    // estaAgachado       = está agachado (CROUCH, ou defendendo agachado).
+    // estaDefendendoBaixo = está em DEFESA_BAIXA (agachado + defender = down-back).
+    //                       Só essa postura bloqueia golpes "baixo".
+    this.estaAgachado = false;
+    this.estaDefendendoBaixo = false;
   }
 
   // ---- Consultas ------------------------------------------------------------
@@ -1162,6 +1178,34 @@ class Fighter {
     const topo = agachado ? -112 : -186;
     const alt = agachado ? 112 : 186;
     return { x: this.x - meiaL, y: this.y + topo, w: meiaL * 2, h: alt };
+  }
+
+  /* HURTBOX DIVIDIDA (sistema de golpes baixos) -----------------------------
+     Divide a hurtbox cheia numa linha de "cintura" (~58% da altura a partir do
+     topo). A parte de baixo é o quadrante inferior (pernas/pés) — alvo dos
+     golpes "baixo"; a de cima é cabeça/tronco — alvo dos golpes "alto".
+     Os golpes "medio" usam a hurtbox cheia.
+     Como os offsets vêm da hurtbox atual, isso já respeita o agachamento:
+     agachado, a hurtbox é mais baixa, então golpes "alto" passam por cima. */
+  _linhaCintura(hb) {
+    return hb.y + hb.h * 0.58;
+  }
+  hurtboxAlta() {
+    const hb = this.hurtbox();
+    const corte = this._linhaCintura(hb);
+    return { x: hb.x, y: hb.y, w: hb.w, h: corte - hb.y };
+  }
+  hurtboxBaixa() {
+    const hb = this.hurtbox();
+    const corte = this._linhaCintura(hb);
+    return { x: hb.x, y: corte, w: hb.w, h: hb.y + hb.h - corte };
+  }
+
+  // Retorna a região de hurtbox correspondente ao tipo de altura do golpe.
+  hurtboxPara(tipoAltura) {
+    if (tipoAltura === "baixo") return this.hurtboxBaixa();
+    if (tipoAltura === "alto") return this.hurtboxAlta();
+    return this.hurtbox(); // "medio" (ou ausente): corpo inteiro
   }
 
   // O golpe atual está nos quadros ativos? Usa framesAtivos do manifest se
@@ -1314,8 +1358,20 @@ class Fighter {
     const atacanteDoLado =
       (info.origemX <= this.x && this.facing === -1) ||
       (info.origemX >= this.x && this.facing === 1);
+
+    // Postura de defesa correta para a ALTURA do golpe (regra clássica):
+    //  - "baixo": SÓ DEFESA_BAIXA (agachado + defender) bloqueia. Em pé falha.
+    //  - "alto"/"medio": bloqueável em pé ou agachado (defesa alta ou baixa).
+    // (Para transformar "alto" em overhead — só defesa em pé —, basta exigir
+    //  !this.estaDefendendoBaixo no ramo "alto".)
+    const tipoAltura = info.tipoAltura || "medio";
+    const posturaCorreta =
+      tipoAltura === "baixo" ? this.estaDefendendoBaixo : true;
     const bloqueando =
-      this.estado === ESTADOS.BLOCK && atacanteDoLado && !info.ignoraBloqueio;
+      this.estado === ESTADOS.BLOCK &&
+      atacanteDoLado &&
+      !info.ignoraBloqueio &&
+      posturaCorreta;
 
     if (bloqueando) {
       // Defesa: chip mínimo + recuo curto; bloquear quebra o combo recebido.
@@ -1466,6 +1522,11 @@ class Fighter {
       const querDefende = this.controle.quer("defende");
       const agachado = this.estado === ESTADOS.CROUCH;
 
+      // Postura padrão deste quadro (sobrescrita nas defesas/agachamento abaixo).
+      // Atacar ou andar zera as flags — só BLOCK/CROUCH as ativam.
+      this.estaAgachado = false;
+      this.estaDefendendoBaixo = false;
+
       // Ações de borda (prioridade).
       if (
         acoes.includes("especial") &&
@@ -1524,11 +1585,16 @@ class Fighter {
       }
       if (querDefende) {
         this.vx = 0;
+        // DEFESA_BAIXA = defender + agachar (down-back): bloqueia golpes baixos.
+        // DEFESA_ALTA  = só defender (em pé): NÃO bloqueia golpes baixos.
+        this.estaAgachado = querAgacha;
+        this.estaDefendendoBaixo = querAgacha;
         this.irPara(ESTADOS.BLOCK);
         return;
       }
       if (querAgacha) {
         this.vx = 0;
+        this.estaAgachado = true; // agachado sem defender (esquiva de altos)
         this.irPara(ESTADOS.CROUCH);
         return;
       }
@@ -1695,6 +1761,10 @@ class Fighter {
       const hb = this.hurtbox();
       ctx.strokeStyle = "#3df";
       ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
+      // Quadrante inferior (pernas/pés): alvo dos golpes "baixo".
+      const hbBaixa = this.hurtboxBaixa();
+      ctx.strokeStyle = this.estaDefendendoBaixo ? "#3f9" : "#fa0";
+      ctx.strokeRect(hbBaixa.x, hbBaixa.y, hbBaixa.w, hbBaixa.h);
       const hit = this.hitbox();
       if (hit) {
         ctx.strokeStyle = "#f33";
@@ -2270,14 +2340,20 @@ class Jogo {
     const hit = atacante.hitbox();
     if (!hit) return;
     if (!alvo.estaVivo()) return;
-    if (colideAABB(hit, alvo.hurtbox())) {
-      const g = GOLPES[atacante.golpeAtual];
+    const g = GOLPES[atacante.golpeAtual];
+    // HITBOX INFERIOR: o golpe testa colisão contra a REGIÃO da hurtbox que
+    // corresponde à sua altura. Um golpe "baixo" precisa alcançar o quadrante
+    // inferior (pernas/pés); um "alto" passa por cima de quem está agachado.
+    const tipoAltura = (g && g.tipo_altura) || "medio";
+    const alvoBox = alvo.hurtboxPara(tipoAltura);
+    if (colideAABB(hit, alvoBox)) {
       const res = alvo.receberGolpe({
         dano: g.dano,
         knockback: g.knockback,
         derruba: g.derruba,
         origemX: atacante.x,
         ignoraBloqueio: !!g.ignoraBloqueio,
+        tipoAltura, // usado pela validação de DEFESA_ALTA vs DEFESA_BAIXA
       });
       atacante.golpeAcertou = true;
 
