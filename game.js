@@ -1229,7 +1229,44 @@ function colideAABB(a, b) {
    10) JOGO — telas, rounds, timer, HUD, hit stop, screen shake, game loop.
    =========================================================================== */
 
-const TELAS = { START: "start", MODO: "modo", SELECT: "select", LUTA: "luta", VITORIA: "vitoria" };
+const TELAS = { START: "start", MODO: "modo", SELECT: "select", LUTA: "luta", VITORIA: "vitoria", CONFIG: "config" };
+
+/* ===========================================================================
+   CONFIGURAÇÕES — array de descritores de cada item do menu.
+   Para ADICIONAR uma nova configuração basta incluir uma entrada aqui.
+   Tipos suportados:
+     "slider"  — número min/max/step ajustado com ←/→
+     "toggle"  — booleano alternado com ←/→ ou ENTER
+   O campo "aplicar(jogo)" garante que o valor novo tem efeito imediato.
+   =========================================================================== */
+const CONFIGS = [
+  {
+    id: "volumeMusica",
+    label: "Volume Música",
+    tipo: "slider",
+    min: 0, max: 1, step: 0.05,
+    get: () => CONFIG.audio.volumeMusica,
+    set: (v) => { CONFIG.audio.volumeMusica = v; },
+    aplicar: (v, jogo) => {
+      // Atualiza a faixa que já está tocando.
+      const trilha = jogo.musica.trilhas[jogo.musica.nomeAtual];
+      if (trilha) trilha.volume = v;
+    },
+  },
+  {
+    id: "volumeEfeitos",
+    label: "Volume Efeitos",
+    tipo: "slider",
+    min: 0, max: 1, step: 0.05,
+    get: () => CONFIG.audio.volumeMaster,
+    set: (v) => { CONFIG.audio.volumeMaster = v; CONFIG.audio.volumeUI = v; },
+    aplicar: (v, jogo) => {
+      // Atualiza o gain do Web Audio (efeitos de combate) em tempo real.
+      if (jogo.audio.master) jogo.audio.master.gain.value = v;
+    },
+  },
+  // ── Adicione novas configurações abaixo ──────────────────────────────────
+];
 
 class Jogo {
   constructor(canvas, recursos) {
@@ -1269,6 +1306,8 @@ class Jogo {
     this.hitStop = 0;              // tempo congelado restante (s)
     this.shake = 0;                // intensidade atual do tremor
     this.menuIndex = 0;            // navegação da tela MODO
+    this.configIndex = 0;          // navegação da tela CONFIG
+    this.telaAnteriorConfig = TELAS.MODO; // para onde ESC leva ao sair das configs
 
     this.p1 = null;
     this.p2 = null;
@@ -1352,8 +1391,9 @@ class Jogo {
       this.entrada.limparPendentes();
       return;
     }
-    if (this.tela === TELAS.MODO)   { this._atualizarModo(); this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.MODO)   { this._atualizarModo();   this.entrada.limparPendentes(); return; }
     if (this.tela === TELAS.SELECT) { this._atualizarSelect(); this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.CONFIG) { this._atualizarConfig(); this.entrada.limparPendentes(); return; }
 
     if (this.tela === TELAS.VITORIA) {
       this.p1.atualizar(dt, false);
@@ -1421,8 +1461,8 @@ class Jogo {
 
   // --- Tela MODO: escolher 1P (com dificuldade) ou 2P ---
   _atualizarModo() {
-    // 4 opções: 1P Fácil / 1P Médio / 1P Difícil / 2 Jogadores.
-    const total = 4;
+    // 5 opções: 1P Fácil / 1P Médio / 1P Difícil / 2 Jogadores / Configurações.
+    const total = 5;
     const anteriorIndex = this.menuIndex;
     if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.menuIndex = (this.menuIndex + total - 1) % total;
     if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.menuIndex = (this.menuIndex + 1) % total;
@@ -1434,7 +1474,15 @@ class Jogo {
       if (this.menuIndex === 0) { this.modo = "1p"; this.dificuldade = "facil"; }
       else if (this.menuIndex === 1) { this.modo = "1p"; this.dificuldade = "medio"; }
       else if (this.menuIndex === 2) { this.modo = "1p"; this.dificuldade = "dificil"; }
-      else { this.modo = "2p"; }
+      else if (this.menuIndex === 3) { this.modo = "2p"; }
+      else {
+        // Configurações.
+        this.somUI.tocar("confirmar");
+        this.telaAnteriorConfig = TELAS.MODO;
+        this.configIndex = 0;
+        this.tela = TELAS.CONFIG;
+        return;
+      }
       this.escolha = { p1: 0, p2: 1 };
       this.confirmado = { p1: false, p2: false };
       this.somUI.tocar("confirmar");
@@ -1478,6 +1526,43 @@ class Jogo {
     }
 
     if (this.confirmado.p1 && this.confirmado.p2) this.comecarPartida();
+  }
+
+  // --- Tela CONFIG: ajusta configurações via CONFIGS[] ---
+  _atualizarConfig() {
+    const total = CONFIGS.length;
+    const anteriorIndex = this.configIndex;
+
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.configIndex = (this.configIndex + total - 1) % total;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.configIndex = (this.configIndex + 1) % total;
+    if (this.configIndex !== anteriorIndex) this.somUI.tocar("navegar");
+
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.tela = this.telaAnteriorConfig;
+      return;
+    }
+
+    // Ajuste de valor do item selecionado.
+    const item = CONFIGS[this.configIndex];
+    if (!item) return;
+
+    if (item.tipo === "slider") {
+      let alterou = false;
+      if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft"))  { item.set(Math.max(item.min, +(item.get() - item.step).toFixed(2))); alterou = true; }
+      if (this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight")) { item.set(Math.min(item.max, +(item.get() + item.step).toFixed(2))); alterou = true; }
+      if (alterou) {
+        item.aplicar(item.get(), this);
+        this.somUI.tocar("navegar");
+      }
+    } else if (item.tipo === "toggle") {
+      if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft") ||
+          this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight") || this.entrada.confirmar) {
+        item.set(!item.get());
+        item.aplicar(item.get(), this);
+        this.somUI.tocar("navegar");
+      }
+    }
   }
 
   // --- Screen shake: decai com o tempo ---
@@ -1607,9 +1692,10 @@ class Jogo {
     ctx.clearRect(0, 0, LARGURA, ALTURA);
 
     // Telas de menu (sem shake).
-    if (this.tela === TELAS.START)  { this._desenharCenario(ctx); this._desenharStart(ctx); return; }
-    if (this.tela === TELAS.MODO)   { this._desenharCenario(ctx); this._desenharModo(ctx); return; }
+    if (this.tela === TELAS.START)  { this._desenharCenario(ctx); this._desenharStart(ctx);  return; }
+    if (this.tela === TELAS.MODO)   { this._desenharCenario(ctx); this._desenharModo(ctx);   return; }
     if (this.tela === TELAS.SELECT) { this._desenharCenario(ctx); this._desenharSelect(ctx); return; }
+    if (this.tela === TELAS.CONFIG) { this._desenharCenario(ctx); this._desenharConfig(ctx); return; }
 
     // Tela de vitória: apenas cenário, sprites animando e o texto central.
     if (this.tela === TELAS.VITORIA) {
@@ -1835,6 +1921,81 @@ class Jogo {
     }
   }
 
+  // ---- Tela de configurações -----------------------------------------------
+  _desenharConfig(ctx) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffd34d";
+    ctx.font = "bold 48px 'Segoe UI', sans-serif";
+    ctx.fillText("CONFIGURAÇÕES", LARGURA / 2, 110);
+
+    const itemH = 80;          // altura por item
+    const totalH = CONFIGS.length * itemH;
+    const startY = ALTURA / 2 - totalH / 2 + 20;
+    const sliderW = 320;       // largura da barra de slider
+
+    for (let i = 0; i < CONFIGS.length; i++) {
+      const item = CONFIGS[i];
+      const sel = i === this.configIndex;
+      const cy = startY + i * itemH;
+
+      // Fundo do item selecionado.
+      if (sel) {
+        ctx.fillStyle = "rgba(255,211,77,0.10)";
+        ctx.fillRect(LARGURA / 2 - 360, cy - 30, 720, 58);
+      }
+
+      // Label.
+      ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
+      ctx.font = sel ? "bold 22px 'Segoe UI', sans-serif" : "20px 'Segoe UI', sans-serif";
+      ctx.textAlign = "right";
+      ctx.fillText(item.label, LARGURA / 2 - sliderW / 2 - 24, cy + 6);
+
+      if (item.tipo === "slider") {
+        const val = item.get();
+        const frac = (val - item.min) / (item.max - item.min);
+        const sx = LARGURA / 2 - sliderW / 2;
+
+        // Trilha.
+        ctx.fillStyle = "#1a1430";
+        ctx.fillRect(sx, cy - 8, sliderW, 16);
+        ctx.strokeStyle = sel ? "#ffd34d" : "#5a5070";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(sx, cy - 8, sliderW, 16);
+
+        // Preenchimento.
+        ctx.fillStyle = sel ? "#ffd34d" : "#7a60cc";
+        ctx.fillRect(sx, cy - 8, sliderW * frac, 16);
+
+        // Alça.
+        const hx = sx + sliderW * frac;
+        ctx.fillStyle = sel ? "#fff" : "#cfc6e0";
+        ctx.beginPath();
+        ctx.arc(hx, cy, 11, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Setas e percentual.
+        ctx.textAlign = "left";
+        ctx.fillStyle = sel ? "#ffd34d" : "#9b90b5";
+        ctx.font = sel ? "bold 20px 'Segoe UI', sans-serif" : "18px 'Segoe UI', sans-serif";
+        const pct = Math.round(val * 100) + "%";
+        ctx.fillText(sel ? `◀  ${pct}  ▶` : pct, sx + sliderW + 18, cy + 7);
+
+      } else if (item.tipo === "toggle") {
+        const ligado = item.get();
+        ctx.textAlign = "left";
+        const tx = LARGURA / 2 - sliderW / 2;
+        ctx.fillStyle = ligado ? "#36d23a" : "#e03020";
+        ctx.font = sel ? "bold 22px 'Segoe UI', sans-serif" : "20px 'Segoe UI', sans-serif";
+        ctx.fillText(ligado ? (sel ? "◀  LIGADO  ▶" : "LIGADO") : (sel ? "◀  DESLIGADO  ▶" : "DESLIGADO"), tx, cy + 7);
+      }
+    }
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "16px 'Segoe UI', sans-serif";
+    ctx.fillText("W/S ou ↑/↓ para navegar  •  ←/→ para ajustar  •  ESC volta", LARGURA / 2, ALTURA - 36);
+  }
+
   // ---- Tela de seleção de modo ---------------------------------------------
   _desenharModo(ctx) {
     ctx.textAlign = "center";
@@ -1842,7 +2003,7 @@ class Jogo {
     ctx.font = "bold 48px 'Segoe UI', sans-serif";
     ctx.fillText("MODO DE JOGO", LARGURA / 2, 130);
 
-    const opcoes = ["1 JOGADOR — FÁCIL", "1 JOGADOR — MÉDIO", "1 JOGADOR — DIFÍCIL", "2 JOGADORES"];
+    const opcoes = ["1 JOGADOR — FÁCIL", "1 JOGADOR — MÉDIO", "1 JOGADOR — DIFÍCIL", "2 JOGADORES", "⚙  CONFIGURAÇÕES"];
     let y = 230;
     for (let i = 0; i < opcoes.length; i++) {
       const sel = i === this.menuIndex;
