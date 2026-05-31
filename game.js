@@ -123,6 +123,7 @@ const CONFIG = {
   audio: {
     volumeMaster: 0.35,  // 0..1 — volume dos efeitos sonoros
     volumeMusica: 0.50,  // 0..1 — volume das músicas de fundo
+    volumeUI:    0.70,  // 0..1 — volume dos efeitos de interface (menus)
   },
 
   /* --- IA (3 dificuldades) -------------------------------------------------
@@ -655,9 +656,9 @@ class MusicaFX {
   // Pré-carrega as três trilhas (chamado antes de iniciar o jogo).
   precarregar() {
     const arquivos = {
-      menu:    "assets/musica_menu.mp3",
-      luta:    "assets/musica_luta.mp3",
-      vitoria: "assets/musica_vitoria.mp3",
+      menu:    "assets/audio/musica_menu.mp3",
+      luta:    "assets/audio/musica_luta.mp3",
+      vitoria: "assets/audio/musica_vitoria.mp3",
     };
     for (const [nome, src] of Object.entries(arquivos)) {
       const audio = new Audio(src);
@@ -699,6 +700,46 @@ class MusicaFX {
     if (!this.ligado) return;
     const t = this.trilhas[this.nomeAtual];
     if (t) t.play().catch(() => {});
+  }
+}
+
+/* ===========================================================================
+   6c) SOM DE UI — efeitos sonoros dos menus (navegação, confirmação, voltar).
+   Arquivos esperados em assets/audio/:
+     sfx_confirmar.mp3   → ENTER na tela de título
+     sfx_navegar.mp3     → trocar opção no menu de modo
+     sfx_personagem.mp3  → trocar personagem na seleção
+     sfx_selecionar.mp3  → confirmar personagem escolhido
+     sfx_voltar.mp3      → ESC / voltar para tela anterior
+   =========================================================================== */
+
+class SomUI {
+  constructor() {
+    this.sons = {};
+  }
+
+  precarregar() {
+    const arquivos = {
+      confirmar:  "assets/audio/sfx_confirmar.mp3",
+      navegar:    "assets/audio/sfx_navegar.mp3",
+      personagem: "assets/audio/sfx_personagem.mp3",
+      selecionar: "assets/audio/sfx_selecionar.mp3",
+      voltar:     "assets/audio/sfx_voltar.mp3",
+    };
+    for (const [nome, src] of Object.entries(arquivos)) {
+      const audio = new Audio(src);
+      audio.preload = "auto";
+      this.sons[nome] = audio;
+    }
+  }
+
+  // Toca o efeito indicado. Reinicia do início para poder disparar rapidamente.
+  tocar(nome) {
+    const s = this.sons[nome];
+    if (!s) return;
+    s.volume = CONFIG.audio.volumeUI;
+    s.currentTime = 0;
+    s.play().catch(() => {});
   }
 }
 
@@ -1200,6 +1241,8 @@ class Jogo {
     this.audio = new AudioFX();
     this.musica = new MusicaFX();
     this.musica.precarregar();
+    this.somUI = new SomUI();
+    this.somUI.precarregar();
     this.debug = false;
 
     this.tela = TELAS.START;
@@ -1305,7 +1348,7 @@ class Jogo {
   _atualizar(dt) {
     // --- Telas de menu ---
     if (this.tela === TELAS.START) {
-      if (this.entrada.confirmar) { this.audio.garantir(); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) { this.audio.garantir(); this.somUI.tocar("confirmar"); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
       this.entrada.limparPendentes();
       return;
     }
@@ -1316,7 +1359,7 @@ class Jogo {
       this.p1.atualizar(dt, false);
       this.p2.atualizar(dt, false);
       this.particulas.atualizar(dt);
-      if (this.entrada.confirmar) { this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) { this.somUI.tocar("confirmar"); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
       this.entrada.limparPendentes();
       return;
     }
@@ -1380,9 +1423,12 @@ class Jogo {
   _atualizarModo() {
     // 4 opções: 1P Fácil / 1P Médio / 1P Difícil / 2 Jogadores.
     const total = 4;
+    const anteriorIndex = this.menuIndex;
     if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.menuIndex = (this.menuIndex + total - 1) % total;
     if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.menuIndex = (this.menuIndex + 1) % total;
-    if (this.entrada.voltar) { this.tela = TELAS.START; return; }
+    if (this.menuIndex !== anteriorIndex) this.somUI.tocar("navegar");
+
+    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.START; return; }
 
     if (this.entrada.confirmar) {
       if (this.menuIndex === 0) { this.modo = "1p"; this.dificuldade = "facil"; }
@@ -1391,38 +1437,43 @@ class Jogo {
       else { this.modo = "2p"; }
       this.escolha = { p1: 0, p2: 1 };
       this.confirmado = { p1: false, p2: false };
+      this.somUI.tocar("confirmar");
       this.tela = TELAS.SELECT;
     }
   }
 
   // --- Tela SELECT: cada jogador escolhe um dos dois personagens ---
   _atualizarSelect() {
-    if (this.entrada.voltar) { this.tela = TELAS.MODO; return; }
+    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.MODO; return; }
     const n = PERSONAGENS.length;
 
     // Jogador 1 navega com A/D e confirma com soco (F) ou Enter.
     if (!this.confirmado.p1) {
+      const ant1 = this.escolha.p1;
       if (this.entrada.borda("KeyA")) this.escolha.p1 = (this.escolha.p1 + n - 1) % n;
       if (this.entrada.borda("KeyD")) this.escolha.p1 = (this.escolha.p1 + 1) % n;
-      if (this.entrada.borda(TECLAS.p1.soco)) this.confirmado.p1 = true;
+      if (this.escolha.p1 !== ant1) this.somUI.tocar("personagem");
+      if (this.entrada.borda(TECLAS.p1.soco)) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
     }
 
     if (this.modo === "2p") {
       // Jogador 2 navega com ← → e confirma com soco (J).
       if (!this.confirmado.p2) {
+        const ant2 = this.escolha.p2;
         if (this.entrada.borda("ArrowLeft"))  this.escolha.p2 = (this.escolha.p2 + n - 1) % n;
         if (this.entrada.borda("ArrowRight")) this.escolha.p2 = (this.escolha.p2 + 1) % n;
-        if (this.entrada.borda(TECLAS.p2.soco)) this.confirmado.p2 = true;
+        if (this.escolha.p2 !== ant2) this.somUI.tocar("personagem");
+        if (this.entrada.borda(TECLAS.p2.soco)) { this.confirmado.p2 = true; this.somUI.tocar("selecionar"); }
       }
       // Enter confirma quem ainda falta (atalho).
       if (this.entrada.confirmar) {
-        if (!this.confirmado.p1) this.confirmado.p1 = true;
-        else this.confirmado.p2 = true;
+        if (!this.confirmado.p1) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
+        else if (!this.confirmado.p2) { this.confirmado.p2 = true; this.somUI.tocar("selecionar"); }
       }
     } else {
       // 1 Player: a CPU pega o personagem oposto até o P1 confirmar.
       if (!this.confirmado.p1) this.escolha.p2 = (this.escolha.p1 + 1) % n;
-      if (this.entrada.confirmar) this.confirmado.p1 = true;
+      if (this.entrada.confirmar) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
       this.confirmado.p2 = this.confirmado.p1;
     }
 
@@ -1560,7 +1611,17 @@ class Jogo {
     if (this.tela === TELAS.MODO)   { this._desenharCenario(ctx); this._desenharModo(ctx); return; }
     if (this.tela === TELAS.SELECT) { this._desenharCenario(ctx); this._desenharSelect(ctx); return; }
 
-    // Mundo com screen shake.
+    // Tela de vitória: apenas cenário, sprites animando e o texto central.
+    if (this.tela === TELAS.VITORIA) {
+      this._desenharCenario(ctx);
+      this.p1.desenhar(ctx, this.debug);
+      this.p2.desenhar(ctx, this.debug);
+      this.particulas.desenhar(ctx);
+      this._desenharVitoria(ctx);
+      return;
+    }
+
+    // Tela de LUTA — mundo com screen shake.
     ctx.save();
     if (this.shake > 0) {
       const dx = (Math.random() - 0.5) * this.shake;
@@ -1578,7 +1639,6 @@ class Jogo {
     this._desenharHUD(ctx);
     if (this.faseRound === "anuncio") this._desenharAnuncio(ctx);
     if (this.faseRound === "fim") this._desenharFimRound(ctx);
-    if (this.tela === TELAS.VITORIA) this._desenharVitoria(ctx);
   }
 
   _desenharCenario(ctx) {
