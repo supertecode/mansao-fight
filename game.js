@@ -687,11 +687,19 @@ class MusicaFX {
 
     this.nomeAtual = nome;
     const prox = this.trilhas[nome];
-    if (prox) {
-      prox.volume = CONFIG.audio.volumeMusica;
-      prox.play().catch(() => {
-        // O navegador bloqueou a reprodução automática (antes do 1º gesto).
-        // Ficará silencioso até o próximo tocar() após interação do usuário.
+    if (!prox) return;
+
+    prox.volume = CONFIG.audio.volumeMusica;
+    const tentativa = prox.play();
+    if (tentativa !== undefined) {
+      tentativa.catch(() => {
+        // Navegador bloqueou autoplay (política de interação do usuário).
+        // Registra um listener único: assim que qualquer tecla for pressionada,
+        // tenta tocar novamente — isso garante que a música começa no 1º ENTER.
+        const retry = () => {
+          if (this.nomeAtual === nome) prox.play().catch(() => {});
+        };
+        document.addEventListener("keydown", retry, { once: true });
       });
     }
   }
@@ -1253,7 +1261,7 @@ function colideAABB(a, b) {
    10) JOGO — telas, rounds, timer, HUD, hit stop, screen shake, game loop.
    =========================================================================== */
 
-const TELAS = { START: "start", MODO: "modo", SELECT: "select", LUTA: "luta", VITORIA: "vitoria", CONFIG: "config" };
+const TELAS = { START: "start", MODO: "modo", DIFICULDADE: "dificuldade", SELECT: "select", LUTA: "luta", VITORIA: "vitoria", CONFIG: "config" };
 
 /* ===========================================================================
    CONFIGURAÇÕES — array de descritores de cada item do menu.
@@ -1330,6 +1338,7 @@ class Jogo {
     this.hitStop = 0;              // tempo congelado restante (s)
     this.shake = 0;                // intensidade atual do tremor
     this.menuIndex = 0;            // navegação da tela MODO
+    this.dificuldadeIndex = 0;     // navegação da tela DIFICULDADE
     this.configIndex = 0;          // navegação da tela CONFIG
     this.telaAnteriorConfig = TELAS.MODO; // para onde ESC leva ao sair das configs
 
@@ -1391,6 +1400,10 @@ class Jogo {
 
   // ---- Loop principal -------------------------------------------------------
   rodar() {
+    // Tenta tocar a música do menu assim que o jogo inicia.
+    // Se o navegador bloquear (autoplay policy), o MusicaFX reativa no 1º gesto.
+    this.musica.tocar("menu");
+
     let anterior = performance.now();
     const passo = (agora) => {
       let dt = (agora - anterior) / 1000;
@@ -1415,9 +1428,10 @@ class Jogo {
       this.entrada.limparPendentes();
       return;
     }
-    if (this.tela === TELAS.MODO)   { this._atualizarModo();   this.entrada.limparPendentes(); return; }
-    if (this.tela === TELAS.SELECT) { this._atualizarSelect(); this.entrada.limparPendentes(); return; }
-    if (this.tela === TELAS.CONFIG) { this._atualizarConfig(); this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.MODO)        { this._atualizarModo();        this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.DIFICULDADE) { this._atualizarDificuldade();  this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.SELECT)      { this._atualizarSelect();       this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.CONFIG)      { this._atualizarConfig();       this.entrada.limparPendentes(); return; }
 
     if (this.tela === TELAS.VITORIA) {
       this.p1.atualizar(dt, false);
@@ -1483,10 +1497,9 @@ class Jogo {
     }
   }
 
-  // --- Tela MODO: escolher 1P (com dificuldade) ou 2P ---
+  // --- Tela MODO: 1 Jogador / 2 Jogadores / Configurações ---
   _atualizarModo() {
-    // 5 opções: 1P Fácil / 1P Médio / 1P Difícil / 2 Jogadores / Configurações.
-    const total = 5;
+    const total = 3;
     const anteriorIndex = this.menuIndex;
     if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.menuIndex = (this.menuIndex + total - 1) % total;
     if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.menuIndex = (this.menuIndex + 1) % total;
@@ -1495,18 +1508,40 @@ class Jogo {
     if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.START; return; }
 
     if (this.entrada.confirmar) {
-      if (this.menuIndex === 0) { this.modo = "1p"; this.dificuldade = "facil"; }
-      else if (this.menuIndex === 1) { this.modo = "1p"; this.dificuldade = "medio"; }
-      else if (this.menuIndex === 2) { this.modo = "1p"; this.dificuldade = "dificil"; }
-      else if (this.menuIndex === 3) { this.modo = "2p"; }
-      else {
+      this.somUI.tocar("confirmar");
+      if (this.menuIndex === 0) {
+        // 1 Jogador → tela intermediária de dificuldade.
+        this.dificuldadeIndex = 1; // começa selecionado em Médio
+        this.tela = TELAS.DIFICULDADE;
+      } else if (this.menuIndex === 1) {
+        // 2 Jogadores → direto para seleção de personagem.
+        this.modo = "2p";
+        this.escolha = { p1: 0, p2: 1 };
+        this.confirmado = { p1: false, p2: false };
+        this.tela = TELAS.SELECT;
+      } else {
         // Configurações.
-        this.somUI.tocar("confirmar");
         this.telaAnteriorConfig = TELAS.MODO;
         this.configIndex = 0;
         this.tela = TELAS.CONFIG;
-        return;
       }
+    }
+  }
+
+  // --- Tela DIFICULDADE: fácil / médio / difícil (só para 1 Jogador) ---
+  _atualizarDificuldade() {
+    const total = 3;
+    const anteriorIndex = this.dificuldadeIndex;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.dificuldadeIndex = (this.dificuldadeIndex + total - 1) % total;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.dificuldadeIndex = (this.dificuldadeIndex + 1) % total;
+    if (this.dificuldadeIndex !== anteriorIndex) this.somUI.tocar("navegar");
+
+    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.MODO; return; }
+
+    if (this.entrada.confirmar) {
+      const dificuldades = ["facil", "medio", "dificil"];
+      this.modo = "1p";
+      this.dificuldade = dificuldades[this.dificuldadeIndex];
       this.escolha = { p1: 0, p2: 1 };
       this.confirmado = { p1: false, p2: false };
       this.somUI.tocar("confirmar");
@@ -1727,10 +1762,11 @@ class Jogo {
     ctx.clearRect(0, 0, LARGURA, ALTURA);
 
     // Telas de menu (sem shake).
-    if (this.tela === TELAS.START)  { this._desenharCenario(ctx); this._desenharStart(ctx);  return; }
-    if (this.tela === TELAS.MODO)   { this._desenharCenario(ctx); this._desenharModo(ctx);   return; }
-    if (this.tela === TELAS.SELECT) { this._desenharCenario(ctx); this._desenharSelect(ctx); return; }
-    if (this.tela === TELAS.CONFIG) { this._desenharCenario(ctx); this._desenharConfig(ctx); return; }
+    if (this.tela === TELAS.START)       { this._desenharCenario(ctx); this._desenharStart(ctx);        return; }
+    if (this.tela === TELAS.MODO)        { this._desenharCenario(ctx); this._desenharModo(ctx);         return; }
+    if (this.tela === TELAS.DIFICULDADE) { this._desenharCenario(ctx); this._desenharDificuldade(ctx);  return; }
+    if (this.tela === TELAS.SELECT)      { this._desenharCenario(ctx); this._desenharSelect(ctx);       return; }
+    if (this.tela === TELAS.CONFIG)      { this._desenharCenario(ctx); this._desenharConfig(ctx);       return; }
 
     // Tela de vitória: apenas cenário, sprites animando e o texto central.
     if (this.tela === TELAS.VITORIA) {
@@ -2036,21 +2072,71 @@ class Jogo {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffd34d";
     ctx.font = "bold 48px 'Segoe UI', sans-serif";
-    ctx.fillText("MODO DE JOGO", LARGURA / 2, 130);
+    ctx.fillText("MODO DE JOGO", LARGURA / 2, 160);
 
-    const opcoes = ["1 JOGADOR — FÁCIL", "1 JOGADOR — MÉDIO", "1 JOGADOR — DIFÍCIL", "2 JOGADORES", "⚙  CONFIGURAÇÕES"];
-    let y = 230;
+    const opcoes = [
+      { label: "1 JOGADOR",       sub: "Enfrenta a inteligência artificial" },
+      { label: "2 JOGADORES",     sub: "Partida local entre dois jogadores" },
+      { label: "⚙  CONFIGURAÇÕES", sub: "Ajuste volume e outras opções"      },
+    ];
+    let y = 260;
     for (let i = 0; i < opcoes.length; i++) {
       const sel = i === this.menuIndex;
       ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
       ctx.font = sel ? "bold 30px 'Segoe UI', sans-serif" : "24px 'Segoe UI', sans-serif";
-      ctx.fillText((sel ? "▶  " : "") + opcoes[i], LARGURA / 2, y);
-      y += 52;
+      ctx.fillText((sel ? "▶  " : "   ") + opcoes[i].label, LARGURA / 2, y);
+      ctx.fillStyle = sel ? "rgba(255,211,77,0.6)" : "rgba(207,198,224,0.45)";
+      ctx.font = "15px 'Segoe UI', sans-serif";
+      ctx.fillText(opcoes[i].sub, LARGURA / 2, y + 22);
+      y += 72;
     }
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para escolher • ENTER confirma • ESC volta", LARGURA / 2, 470);
+    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 490);
+  }
+
+  // ---- Tela de seleção de dificuldade (1 Jogador) --------------------------
+  _desenharDificuldade(ctx) {
+    ctx.textAlign = "center";
+
+    // Título com breadcrumb.
+    ctx.fillStyle = "rgba(207,198,224,0.5)";
+    ctx.font = "18px 'Segoe UI', sans-serif";
+    ctx.fillText("1 JOGADOR", LARGURA / 2, 110);
+    ctx.fillStyle = "#ffd34d";
+    ctx.font = "bold 48px 'Segoe UI', sans-serif";
+    ctx.fillText("DIFICULDADE", LARGURA / 2, 165);
+
+    const opcoes = [
+      { label: "FÁCIL",   cor: "#36d23a", sub: "IA reage mais devagar, ideal para começar" },
+      { label: "MÉDIO",   cor: "#ffd34d", sub: "Equilíbrio entre desafio e diversão" },
+      { label: "DIFÍCIL", cor: "#e03020", sub: "IA agressiva e precisa — sem piedade" },
+    ];
+    let y = 255;
+    for (let i = 0; i < opcoes.length; i++) {
+      const sel = i === this.dificuldadeIndex;
+      const op = opcoes[i];
+
+      if (sel) {
+        ctx.fillStyle = "rgba(255,211,77,0.08)";
+        ctx.fillRect(LARGURA / 2 - 300, y - 32, 600, 66);
+      }
+
+      ctx.fillStyle = sel ? op.cor : "rgba(207,198,224,0.55)";
+      ctx.font = sel ? "bold 32px 'Segoe UI', sans-serif" : "26px 'Segoe UI', sans-serif";
+      ctx.fillText((sel ? "▶  " : "   ") + op.label, LARGURA / 2, y);
+
+      ctx.fillStyle = sel ? "rgba(255,255,255,0.65)" : "rgba(207,198,224,0.35)";
+      ctx.font = "15px 'Segoe UI', sans-serif";
+      ctx.fillText(op.sub, LARGURA / 2, y + 22);
+
+      y += 80;
+    }
+
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "16px 'Segoe UI', sans-serif";
+    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 490);
   }
 
   // ---- Tela de seleção de personagem ---------------------------------------
