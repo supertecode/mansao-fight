@@ -33,13 +33,13 @@
         },
         "kick": {
           "frames": 2,
-          "fps": 7,
+          "fps": 5,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_mid": {
           "frames": 2,
-          "fps": 7,
+          "fps": 5,
           "loop": false,
           "framesAtivos": [1]
         },
@@ -124,13 +124,13 @@
         },
         "kick": {
           "frames": 2,
-          "fps": 1,
+          "fps": 5,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_mid": {
           "frames": 2,
-          "fps": 1,
+          "fps": 5,
           "loop": false,
           "framesAtivos": [1]
         },
