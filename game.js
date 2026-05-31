@@ -44,7 +44,13 @@ const CONFIG = {
     velAndar: 200,       // px/s ao recuar (anda)
     velCorrer: 290,      // px/s ao avançar contra o oponente (corre)
     forcaPulo: 820,      // velocidade inicial do pulo (px/s)
+    // Velocidade horizontal no ar (tecla pressionada). Levemente menor que
+    // correr para que o crossover exija intenção, mas seja responsivo.
+    velPuloLateral: 260,
     escala: 1.0,         // escala de desenho do sprite (256px de altura)
+    // Crossover jump: pés do saltador devem estar ao menos N px acima dos pés do
+    // oponente para a separação de corpo ser desativada e a travessia ser permitida.
+    alturaMinCrossover: 85,
   },
 
   // --- Regras de luta -------------------------------------------------------
@@ -1037,6 +1043,10 @@ class Fighter {
     if (this.estado === ESTADOS.WALK) this.anim.tocar(this._animDoEstado(ESTADOS.WALK));
     this.anim.atualizar(dt);
 
+    // CROUCH: mantém sempre o frame 0 da pose agachada (item_0).
+    // O frame 1 (item_1) é reservado para o agarrão — não deve aparecer ao agachar.
+    if (this.estado === ESTADOS.CROUCH) this.anim.frame = 0;
+
     // Lança projétil/super no frame ativo de FIREBALL/SPECIAL.
     if ((this.estado === ESTADOS.FIREBALL || this.estado === ESTADOS.SPECIAL) &&
         !this.projetilLancado && this._golpeAtivo()) {
@@ -1079,11 +1089,22 @@ class Fighter {
       if (acoes.includes("projetil")) { this.iniciarProjetil(agachado); return; }
       if (acoes.includes("provoca") && this.noChao) { this.irPara(ESTADOS.TAUNT, true); return; }
 
-      if (!this.noChao) { this.irPara(ESTADOS.JUMP); return; }
+      if (!this.noChao) {
+        // Controle direcional no ar: segura ← ou → para mover lateralmente.
+        if (querDir)      this.vx =  CONFIG.movimento.velPuloLateral;
+        else if (querEsq) this.vx = -CONFIG.movimento.velPuloLateral;
+        // Sem tecla: momentum atual é preservado (sem atrito no ar — ver _fisica).
+        this.irPara(ESTADOS.JUMP);
+        return;
+      }
 
       if (querPula) {
         this.vy = -FORCA_PULO;
         this.noChao = false;
+        // Velocidade horizontal inicial do pulo (direção pressionada no momento).
+        if (querDir)      this.vx =  CONFIG.movimento.velPuloLateral;
+        else if (querEsq) this.vx = -CONFIG.movimento.velPuloLateral;
+        else              this.vx = 0; // pulo reto
         this.irPara(ESTADOS.JUMP, true);
         this.jogo.audio.pulo();
         return;
@@ -1108,10 +1129,13 @@ class Fighter {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    if (this.estado !== ESTADOS.WALK) {
+    if (this.estado !== ESTADOS.WALK && this.estado !== ESTADOS.JUMP) {
+      // No chão e fora do andar: desacelera rápido (empurrões, hit stun, etc.).
       this.vx *= Math.pow(0.0008, dt);
       if (Math.abs(this.vx) < 4) this.vx = 0;
     }
+    // JUMP: sem atrito passivo — o input controla vx diretamente.
+    // Momentum inicial (sem tecla pressionada) é preservado até o pouso.
 
     if (this.y >= CHAO_Y) {
       const estavaNoAr = !this.noChao;
@@ -1577,12 +1601,23 @@ class Jogo {
   _resolverColisaoCorpos() {
     const a = this.p1.hurtbox();
     const b = this.p2.hurtbox();
-    if (colideAABB(a, b)) {
-      const sobreposicao = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
-      const metade = sobreposicao / 2;
-      if (this.p1.x < this.p2.x) { this.p1.x -= metade; this.p2.x += metade; }
-      else { this.p1.x += metade; this.p2.x -= metade; }
-    }
+    if (!colideAABB(a, b)) return;
+
+    // ── CROSSOVER JUMP ────────────────────────────────────────────────────────
+    // Se um lutador está no ar com os pés acima de alturaMinCrossover relativo
+    // aos pés do oponente, suspende a separação horizontal — isso permite pular
+    // por cima do adversário e pousar do outro lado.
+    // O facing já atualiza automaticamente ao cruzar o x do oponente (durante
+    // JUMP o podeAgir() é true, então o facing recalcula frame a frame).
+    const limiar = CONFIG.movimento.alturaMinCrossover;
+    if (!this.p1.noChao && this.p1.y < this.p2.y - limiar) return; // p1 cruzando
+    if (!this.p2.noChao && this.p2.y < this.p1.y - limiar) return; // p2 cruzando
+    // ─────────────────────────────────────────────────────────────────────────
+
+    const sobreposicao = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
+    const metade = sobreposicao / 2;
+    if (this.p1.x < this.p2.x) { this.p1.x -= metade; this.p2.x += metade; }
+    else                        { this.p1.x += metade; this.p2.x -= metade; }
   }
 
   _resolverGolpes() {
