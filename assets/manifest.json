@@ -33,19 +33,19 @@
         },
         "kick": {
           "frames": 2,
-          "fps": 12,
+          "fps": 7,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_mid": {
           "frames": 2,
-          "fps": 12,
+          "fps": 7,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_jump": {
           "frames": 1,
-          "fps": 12,
+          "fps": 10,
           "loop": false,
           "framesAtivos": [0]
         },
@@ -124,19 +124,19 @@
         },
         "kick": {
           "frames": 2,
-          "fps": 12,
+          "fps": 1,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_mid": {
           "frames": 2,
-          "fps": 12,
+          "fps": 1,
           "loop": false,
           "framesAtivos": [1]
         },
         "kick_jump": {
           "frames": 1,
-          "fps": 12,
+          "fps": 10,
           "loop": false,
           "framesAtivos": [0]
         },

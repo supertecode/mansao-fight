@@ -101,6 +101,18 @@ const CONFIG = {
   combo: {
     janelaCancelMs: 230, // janela (ms) após ACERTAR para cancelar em outro golpe
     maxCombo: 3,         // nº máx. de golpes encadeados por cancelamento
+
+    // --- Anti-combo-infinito --------------------------------------------------
+    // Hits consecutivos antes do knockdown forçado (escape do defensor).
+    hitMaxSequencia: 8,
+    // Multiplicador de dano por posição no combo (índice = nº de hits recebidos).
+    // Cada hit subsequente causa ~10-15% menos dano que o anterior.
+    scalingDano: [1.0, 0.90, 0.80, 0.72, 0.65, 0.59, 0.53, 0.48],
+    // Acréscimo fracional de knockback por hit acumulado no defensor.
+    // No hit 0 = knockback normal; no hit 3 = knockback × 2,05; empurra para longe.
+    pushbackPorHit: 0.35,
+    // Milissegundos sem levar dano para zerar o contador de hits do defensor.
+    comboResetMs: 1200,
   },
 
   // --- Game feel (juice) ----------------------------------------------------
@@ -114,6 +126,7 @@ const CONFIG = {
     shakeProjetil: 4,    // tremor ao projétil acertar
     flashMs: 130,        // duração do flash branco em quem apanha
     knockbackEscala: 1.0,// multiplicador global de empurrão
+    wakeupInvencivelMs: 650, // invencibilidade ao levantar (ms): ~0.25s getup + ~0.4s buffer
   },
 
   // --- Partículas -----------------------------------------------------------
@@ -859,8 +872,13 @@ class Fighter {
     this.janelaCancel = 0;         // tempo restante (s) para cancelar
     this.comboContador = 0;        // golpes encadeados na sequência atual
 
+    // Anti-combo-infinito (rastreamento no lado do DEFENSOR).
+    this.comboRecebido = 0;        // hits consecutivos recebidos no combo atual
+    this.comboResetTimer = 0;      // timer (s) para zerar comboRecebido após pausa no dano
+
     // Game feel.
     this.flashTimer = 0;           // duração restante do flash branco
+    this.invencivel = 0;           // invencibilidade de wakeup (s); sprite pisca
   }
 
   // ---- Consultas ------------------------------------------------------------
@@ -992,6 +1010,7 @@ class Fighter {
   // Retorna um resumo para o Jogo decidir o feedback (partículas/som/shake).
   receberGolpe(info) {
     if (!this.estaVivo()) return { ignorado: true };
+    if (this.invencivel > 0) return { ignorado: true };
 
     const atacanteDoLado =
       (info.origemX <= this.x && this.facing === -1) ||
@@ -999,34 +1018,56 @@ class Fighter {
     const bloqueando = this.estado === ESTADOS.BLOCK && atacanteDoLado && !info.ignoraBloqueio;
 
     if (bloqueando) {
-      // Defesa: chip mínimo + recuo curto.
+      // Defesa: chip mínimo + recuo curto; bloquear quebra o combo recebido.
       const chip = Math.floor(info.dano * 0.15);
       this.hp = Math.max(0, this.hp - chip);
       this.vx = (this.x < info.origemX ? -1 : 1) * 90;
       this.ganharEspecial(CONFIG.especial.ganhoAoApanhar * 0.3);
+      this.comboRecebido = 0;
+      this.comboResetTimer = 0;
       return { bloqueado: true, ko: false };
     }
 
-    this.hp = Math.max(0, this.hp - info.dano);
+    const cc = CONFIG.combo;
+
+    // Scaling de dano: hits consecutivos causam progressivamente menos dano,
+    // desincentivando combos longos sem eliminar a mecânica de combo.
+    const scalingIdx = Math.min(this.comboRecebido, cc.scalingDano.length - 1);
+    const dano = Math.max(1, Math.round(info.dano * cc.scalingDano[scalingIdx]));
+
+    // Scaling de knockback: cada hit empurra mais para forçar reposicionamento.
+    // No 3º hit: knockback × 2,05 — suficiente para quebrar o range do combo.
+    const knockback = info.knockback * (1 + cc.pushbackPorHit * this.comboRecebido);
+
+    // Avança o contador e reinicia o timer de reset do combo recebido.
+    this.comboRecebido++;
+    this.comboResetTimer = cc.comboResetMs / 1000;
+
+    // Após hitMaxSequencia hits consecutivos, forçar knockdown independente do golpe.
+    const derruba = info.derruba || (this.comboRecebido >= cc.hitMaxSequencia);
+
+    this.hp = Math.max(0, this.hp - dano);
     this.ganharEspecial(CONFIG.especial.ganhoAoApanhar);
     const dir = this.x < info.origemX ? -1 : 1;
-    this.vx = dir * info.knockback * CONFIG.gameFeel.knockbackEscala;
-    this.flashTimer = CONFIG.gameFeel.flashMs / 1000; // flash branco
+    this.vx = dir * knockback * CONFIG.gameFeel.knockbackEscala;
+    this.flashTimer = CONFIG.gameFeel.flashMs / 1000;
 
     if (this.hp <= 0) {
       this.irPara(ESTADOS.KO, true);
       this.vx = dir * 160;
       this.vy = -180;
       this.noChao = false;
-      return { bloqueado: false, ko: true, dano: info.dano };
-    } else if (info.derruba) {
+      return { bloqueado: false, ko: true, dano };
+    } else if (derruba) {
       this.irPara(ESTADOS.KNOCKDOWN, true);
       this.vy = -260;
       this.noChao = false;
-      return { bloqueado: false, ko: false, derrubou: true, dano: info.dano };
+      // Knockdown forçado pelo limite de hits: zera o contador para o próximo ciclo.
+      if (this.comboRecebido >= cc.hitMaxSequencia) this.comboRecebido = 0;
+      return { bloqueado: false, ko: false, derrubou: true, dano };
     } else {
       this.irPara(ESTADOS.HIT, true);
-      return { bloqueado: false, ko: false, dano: info.dano };
+      return { bloqueado: false, ko: false, dano };
     }
   }
 
@@ -1035,6 +1076,11 @@ class Fighter {
     this.estadoTempo += dt;
     if (this.flashTimer > 0) this.flashTimer -= dt;
     if (this.janelaCancel > 0) this.janelaCancel -= dt;
+    if (this.invencivel > 0) this.invencivel -= dt;
+    if (this.comboResetTimer > 0) {
+      this.comboResetTimer -= dt;
+      if (this.comboResetTimer <= 0) { this.comboResetTimer = 0; this.comboRecebido = 0; }
+    }
 
     if (this.podeAgir() && this.oponente) {
       this.facing = this.oponente.x >= this.x ? 1 : -1;
@@ -1168,8 +1214,19 @@ class Fighter {
     switch (this.estado) {
       case ESTADOS.PUNCH:
       case ESTADOS.KICK:
-      case ESTADOS.FIREBALL:
       case ESTADOS.GRAB:
+        // Recovery frames: o lutador fica preso na pose final pelo tempo de recovery
+        // definido no frame data. Isso impede o encadeamento infinito após a chain de
+        // cancels — o atacante precisa esperar antes de poder agir novamente.
+        // (Cancels ainda funcionam: eles interrompem o recovery do hit anterior.)
+        if (this.anim.terminou) {
+          const fd = GOLPES[this.golpeAtual];
+          const durAnim = this.anim.meta ? this.anim.meta.frames / this.anim.meta.fps : 0;
+          const minDuracao = fd ? durAnim + fd.recovery / 60 : durAnim;
+          if (this.estadoTempo >= minDuracao) this.irPara(ESTADOS.IDLE, true);
+        }
+        break;
+      case ESTADOS.FIREBALL:
       case ESTADOS.SPECIAL:
         if (this.anim.terminou) this.irPara(ESTADOS.IDLE, true);
         break;
@@ -1177,10 +1234,22 @@ class Fighter {
         if (this.anim.terminou && this.estadoTempo > 0.25) this.irPara(ESTADOS.IDLE, true);
         break;
       case ESTADOS.KNOCKDOWN:
-        if (this.noChao && this.estadoTempo > 0.7) this.irPara(ESTADOS.GETUP, true);
+        if (this.noChao && this.estadoTempo > 0.7) {
+          this.irPara(ESTADOS.GETUP, true);
+          // Invencibilidade começa ao levantar: cobre toda a animação de getup
+          // (~0.25 s) + janela de reação ao ficar de pé (~0.4 s).
+          this.invencivel = CONFIG.gameFeel.wakeupInvencivelMs / 1000;
+        }
         break;
       case ESTADOS.GETUP:
-        if (this.anim.terminou) this.irPara(ESTADOS.IDLE, true);
+        if (this.anim.terminou) {
+          // Wakeup block: segurar defesa durante o getup entra em guarda.
+          if (this.controle.quer("defende")) {
+            this.irPara(ESTADOS.BLOCK, true);
+          } else {
+            this.irPara(ESTADOS.IDLE, true);
+          }
+        }
         break;
       case ESTADOS.TAUNT:
         if (this.anim.terminou) this.irPara(ESTADOS.IDLE, true);
@@ -1203,22 +1272,27 @@ class Fighter {
       ctx.translate(-this.x, 0);
     }
 
-    if (fr && fr.ok) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(fr.img, dx, dy, dw, dh);
+    // Flicker durante invencibilidade de wakeup (oculta a cada ~2 frames visuais).
+    const flickerOculto = this.invencivel > 0 && Math.floor(this.invencivel * 14) % 2 === 0;
 
-      // FLASH BRANCO: redesenha o sprite tingido respeitando o alpha (NOVO).
-      if (this.flashTimer > 0) {
-        const intensidade = Math.min(1, this.flashTimer / (CONFIG.gameFeel.flashMs / 1000));
-        const fw = this.recursos.frameW, fh = this.recursos.frameH;
-        if (_bufFlash.width !== fw) { _bufFlash.width = fw; _bufFlash.height = fh; }
-        _bufFlashCtx.clearRect(0, 0, fw, fh);
-        _bufFlashCtx.drawImage(fr.img, 0, 0, fw, fh);
-        _bufFlashCtx.globalCompositeOperation = "source-atop";
-        _bufFlashCtx.fillStyle = `rgba(255,255,255,${0.85 * intensidade})`;
-        _bufFlashCtx.fillRect(0, 0, fw, fh);
-        _bufFlashCtx.globalCompositeOperation = "source-over";
-        ctx.drawImage(_bufFlash, dx, dy, dw, dh);
+    if (fr && fr.ok) {
+      if (!flickerOculto) {
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(fr.img, dx, dy, dw, dh);
+
+        // FLASH BRANCO: redesenha o sprite tingido respeitando o alpha (NOVO).
+        if (this.flashTimer > 0) {
+          const intensidade = Math.min(1, this.flashTimer / (CONFIG.gameFeel.flashMs / 1000));
+          const fw = this.recursos.frameW, fh = this.recursos.frameH;
+          if (_bufFlash.width !== fw) { _bufFlash.width = fw; _bufFlash.height = fh; }
+          _bufFlashCtx.clearRect(0, 0, fw, fh);
+          _bufFlashCtx.drawImage(fr.img, 0, 0, fw, fh);
+          _bufFlashCtx.globalCompositeOperation = "source-atop";
+          _bufFlashCtx.fillStyle = `rgba(255,255,255,${0.85 * intensidade})`;
+          _bufFlashCtx.fillRect(0, 0, fw, fh);
+          _bufFlashCtx.globalCompositeOperation = "source-over";
+          ctx.drawImage(_bufFlash, dx, dy, dw, dh);
+        }
       }
     } else {
       ctx.fillStyle = "rgba(220,60,90,0.85)";
@@ -1377,6 +1451,8 @@ class Jogo {
     this.p2.x = LARGURA * 0.68; this.p2.y = CHAO_Y; this.p2.vx = 0; this.p2.vy = 0;
     this.p1.hp = VIDA_MAX; this.p2.hp = VIDA_MAX;
     this.p1.especial = 0; this.p2.especial = 0;
+    this.p1.comboRecebido = 0; this.p1.comboResetTimer = 0;
+    this.p2.comboRecebido = 0; this.p2.comboResetTimer = 0;
     this.p1.irPara(ESTADOS.IDLE, true);
     this.p2.irPara(ESTADOS.IDLE, true);
     this.p1.facing = 1; this.p2.facing = -1;
@@ -1679,7 +1755,7 @@ class Jogo {
       // Feedback (juice) — centralizado para corpo-a-corpo e agarrão.
       const px = (hit.x + hit.w / 2);
       const py = (hit.y + hit.h / 2);
-      this._feedbackAcerto(atacante, alvo, res, g.dano, px, py, false);
+      this._feedbackAcerto(atacante, alvo, res, res.dano ?? g.dano, px, py, false);
     }
   }
 
