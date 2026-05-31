@@ -2064,7 +2064,7 @@ class Jogo {
     ctx.textAlign = "center";
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para navegar  •  ←/→ para ajustar  •  ESC volta", LARGURA / 2, ALTURA - 36);
+    ctx.fillText("W/S ou ↑/↓ para navegar  •  ←/→ para ajustar  •  ESC volta", LARGURA / 2, 468);
   }
 
   // ---- Tela de seleção de modo ---------------------------------------------
@@ -2072,14 +2072,14 @@ class Jogo {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffd34d";
     ctx.font = "bold 48px 'Segoe UI', sans-serif";
-    ctx.fillText("MODO DE JOGO", LARGURA / 2, 160);
+    ctx.fillText("MODO DE JOGO", LARGURA / 2, 105);
 
     const opcoes = [
       { label: "1 JOGADOR",       sub: "Enfrenta a inteligência artificial" },
       { label: "2 JOGADORES",     sub: "Partida local entre dois jogadores" },
       { label: "⚙  CONFIGURAÇÕES", sub: "Ajuste volume e outras opções"      },
     ];
-    let y = 260;
+    let y = 205;
     for (let i = 0; i < opcoes.length; i++) {
       const sel = i === this.menuIndex;
       ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
@@ -2093,7 +2093,7 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 490);
+    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 468);
   }
 
   // ---- Tela de seleção de dificuldade (1 Jogador) --------------------------
@@ -2103,17 +2103,17 @@ class Jogo {
     // Título com breadcrumb.
     ctx.fillStyle = "rgba(207,198,224,0.5)";
     ctx.font = "18px 'Segoe UI', sans-serif";
-    ctx.fillText("1 JOGADOR", LARGURA / 2, 110);
+    ctx.fillText("1 JOGADOR", LARGURA / 2, 68);
     ctx.fillStyle = "#ffd34d";
     ctx.font = "bold 48px 'Segoe UI', sans-serif";
-    ctx.fillText("DIFICULDADE", LARGURA / 2, 165);
+    ctx.fillText("DIFICULDADE", LARGURA / 2, 118);
 
     const opcoes = [
       { label: "FÁCIL",   cor: "#36d23a", sub: "IA reage mais devagar, ideal para começar" },
       { label: "MÉDIO",   cor: "#ffd34d", sub: "Equilíbrio entre desafio e diversão" },
       { label: "DIFÍCIL", cor: "#e03020", sub: "IA agressiva e precisa — sem piedade" },
     ];
-    let y = 255;
+    let y = 200;
     for (let i = 0; i < opcoes.length; i++) {
       const sel = i === this.dificuldadeIndex;
       const op = opcoes[i];
@@ -2136,7 +2136,7 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 490);
+    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 468);
   }
 
   // ---- Tela de seleção de personagem ---------------------------------------
