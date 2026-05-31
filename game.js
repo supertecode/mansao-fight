@@ -33,21 +33,21 @@
 const CONFIG = {
   // --- Arena / física do mundo ---------------------------------------------
   arena: {
-    largura: 960,        // largura lógica do canvas (px)
-    altura: 540,         // altura lógica do canvas (px)
-    chaoY: 486,          // linha do chão (pés do lutador)
-    gravidade: 2200,     // px/s²
+    largura: 960, // largura lógica do canvas (px)
+    altura: 540, // altura lógica do canvas (px)
+    chaoY: 486, // linha do chão (pés do lutador)
+    gravidade: 2200, // px/s²
   },
 
   // --- Movimentação dos lutadores ------------------------------------------
   movimento: {
-    velAndar: 200,       // px/s ao recuar (anda)
-    velCorrer: 290,      // px/s ao avançar contra o oponente (corre)
-    forcaPulo: 820,      // velocidade inicial do pulo (px/s)
+    velAndar: 200, // px/s ao recuar (anda)
+    velCorrer: 290, // px/s ao avançar contra o oponente (corre)
+    forcaPulo: 820, // velocidade inicial do pulo (px/s)
     // Velocidade horizontal no ar (tecla pressionada). Levemente menor que
     // correr para que o crossover exija intenção, mas seja responsivo.
     velPuloLateral: 260,
-    escala: 1.0,         // escala de desenho do sprite (256px de altura)
+    escala: 1.0, // escala de desenho do sprite (256px de altura)
     // Crossover jump: pés do saltador devem estar ao menos N px acima dos pés do
     // oponente para a separação de corpo ser desativada e a travessia ser permitida.
     alturaMinCrossover: 85,
@@ -56,7 +56,7 @@ const CONFIG = {
   // --- Regras de luta -------------------------------------------------------
   luta: {
     vidaMax: 100,
-    tempoRound: 60,      // segundos por round
+    tempoRound: 60, // segundos por round
     roundsParaVencer: 2, // melhor de 3
   },
 
@@ -73,41 +73,102 @@ const CONFIG = {
      real do dano; senão o engine cai para o startup/ativo daqui (ver
      Fighter._golpeAtivo). Assim o frame data sempre tem efeito. */
   golpes: {
-    punch:      { startup: 4, ativo: 3, recovery: 8,  dano: 6,  knockback: 130, derruba: false, alcance: [18, 112], altura: [-178, -120], cancelavel: true },
-    punch_step: { startup: 5, ativo: 3, recovery: 10, dano: 7,  knockback: 150, derruba: false, alcance: [18, 124], altura: [-178, -120], cancelavel: true },
-    kick:       { startup: 7, ativo: 4, recovery: 14, dano: 11, knockback: 230, derruba: true,  alcance: [20, 140], altura: [-150, -92],  cancelavel: false },
-    kick_mid:   { startup: 6, ativo: 3, recovery: 12, dano: 9,  knockback: 200, derruba: true,  alcance: [20, 132], altura: [-112, -70],  cancelavel: false },
-    kick_jump:  { startup: 4, ativo: 6, recovery: 8,  dano: 12, knockback: 250, derruba: true,  alcance: [10, 122], altura: [-185, -90],  cancelavel: false },
+    punch: {
+      startup: 4,
+      ativo: 3,
+      recovery: 8,
+      dano: 6,
+      knockback: 130,
+      derruba: false,
+      alcance: [18, 112],
+      altura: [-178, -120],
+      cancelavel: true,
+    },
+    punch_step: {
+      startup: 5,
+      ativo: 3,
+      recovery: 10,
+      dano: 7,
+      knockback: 150,
+      derruba: false,
+      alcance: [18, 124],
+      altura: [-178, -120],
+      cancelavel: true,
+    },
+    kick: {
+      startup: 7,
+      ativo: 4,
+      recovery: 14,
+      dano: 11,
+      knockback: 230,
+      derruba: true,
+      alcance: [20, 140],
+      altura: [-150, -92],
+      cancelavel: false,
+    },
+    kick_mid: {
+      startup: 6,
+      ativo: 3,
+      recovery: 12,
+      dano: 9,
+      knockback: 200,
+      derruba: true,
+      alcance: [20, 132],
+      altura: [-112, -70],
+      cancelavel: false,
+    },
+    kick_jump: {
+      startup: 4,
+      ativo: 6,
+      recovery: 8,
+      dano: 12,
+      knockback: 250,
+      derruba: true,
+      alcance: [10, 122],
+      altura: [-185, -90],
+      cancelavel: false,
+    },
     // Agarrão (usa a pose "item"): ignora defesa, derruba, curto alcance.
-    agarra:     { startup: 3, ativo: 3, recovery: 18, dano: 14, knockback: 300, derruba: true,  alcance: [8, 78],   altura: [-180, -60],  cancelavel: false, ignoraBloqueio: true },
+    agarra: {
+      startup: 3,
+      ativo: 3,
+      recovery: 18,
+      dano: 14,
+      knockback: 300,
+      derruba: true,
+      alcance: [8, 78],
+      altura: [-180, -60],
+      cancelavel: false,
+      ignoraBloqueio: true,
+    },
   },
 
   // --- Projéteis ------------------------------------------------------------
   projeteis: {
-    fireball: { dano: 9,  vel: 430, cor: "#5cd6ff", raio: 18 },
-    special:  { dano: 14, vel: 500, cor: "#ff7a3c", raio: 20 }, // p2 agachado
-    super:    { dano: 22, vel: 560, cor: "#ffe24d", raio: 30 }, // golpe de barra cheia
+    fireball: { dano: 9, vel: 430, cor: "#5cd6ff", raio: 18 },
+    special: { dano: 14, vel: 500, cor: "#ff7a3c", raio: 20 }, // p2 agachado
+    super: { dano: 22, vel: 560, cor: "#ffe24d", raio: 30 }, // golpe de barra cheia
   },
 
   // --- Barra de especial ----------------------------------------------------
   especial: {
     max: 100,
-    ganhoAoAcertar: 12,  // enche ao acertar um golpe
-    ganhoAoApanhar: 8,   // enche ao levar dano
-    custo: 100,          // precisa estar cheia para usar o especial
+    ganhoAoAcertar: 12, // enche ao acertar um golpe
+    ganhoAoApanhar: 8, // enche ao levar dano
+    custo: 100, // precisa estar cheia para usar o especial
   },
 
   // --- Combos / cancelamento ------------------------------------------------
   combo: {
     janelaCancelMs: 230, // janela (ms) após ACERTAR para cancelar em outro golpe
-    maxCombo: 3,         // nº máx. de golpes encadeados por cancelamento
+    maxCombo: 3, // nº máx. de golpes encadeados por cancelamento
 
     // --- Anti-combo-infinito --------------------------------------------------
     // Hits consecutivos antes do knockdown forçado (escape do defensor).
     hitMaxSequencia: 8,
     // Multiplicador de dano por posição no combo (índice = nº de hits recebidos).
     // Cada hit subsequente causa ~10-15% menos dano que o anterior.
-    scalingDano: [1.0, 0.90, 0.80, 0.72, 0.65, 0.59, 0.53, 0.48],
+    scalingDano: [1.0, 0.9, 0.8, 0.72, 0.65, 0.59, 0.53, 0.48],
     // Acréscimo fracional de knockback por hit acumulado no defensor.
     // No hit 0 = knockback normal; no hit 3 = knockback × 2,05; empurra para longe.
     pushbackPorHit: 0.35,
@@ -117,32 +178,32 @@ const CONFIG = {
 
   // --- Game feel (juice) ----------------------------------------------------
   gameFeel: {
-    hitStopMs: 60,       // congela base no impacto
-    hitStopPorDano: 4,   // ms extras por ponto de dano
-    hitStopMax: 170,     // teto do hit stop
-    hitStopKO: 340,      // hit stop no golpe que dá KO
-    shakeHit: 6,         // intensidade do tremor no acerto
-    shakeKO: 18,         // intensidade do tremor no KO
-    shakeProjetil: 4,    // tremor ao projétil acertar
-    flashMs: 130,        // duração do flash branco em quem apanha
-    knockbackEscala: 1.0,// multiplicador global de empurrão
+    hitStopMs: 60, // congela base no impacto
+    hitStopPorDano: 4, // ms extras por ponto de dano
+    hitStopMax: 170, // teto do hit stop
+    hitStopKO: 340, // hit stop no golpe que dá KO
+    shakeHit: 6, // intensidade do tremor no acerto
+    shakeKO: 18, // intensidade do tremor no KO
+    shakeProjetil: 4, // tremor ao projétil acertar
+    flashMs: 130, // duração do flash branco em quem apanha
+    knockbackEscala: 1.0, // multiplicador global de empurrão
     wakeupInvencivelMs: 650, // invencibilidade ao levantar (ms): ~0.25s getup + ~0.4s buffer
   },
 
   // --- Partículas -----------------------------------------------------------
   particulas: {
-    faiscasAcerto: 14,   // nº de faíscas no acerto corpo-a-corpo
+    faiscasAcerto: 14, // nº de faíscas no acerto corpo-a-corpo
     faiscasProjetil: 18, // nº de faíscas no acerto de projétil
-    faiscasBloqueio: 8,  // faíscas ao defender
-    poeiraPulo: 8,       // partículas de poeira ao pousar
-    rastroProjetilMs: 18,// intervalo (ms) entre partículas do rastro
+    faiscasBloqueio: 8, // faíscas ao defender
+    poeiraPulo: 8, // partículas de poeira ao pousar
+    rastroProjetilMs: 18, // intervalo (ms) entre partículas do rastro
   },
 
   // --- Áudio (Web Audio API, sintetizado) -----------------------------------
   audio: {
-    volumeMaster: 0.35,  // 0..1 — volume dos efeitos sonoros
-    volumeMusica: 0.50,  // 0..1 — volume das músicas de fundo
-    volumeUI:    0.70,  // 0..1 — volume dos efeitos de interface (menus)
+    volumeMaster: 0.35, // 0..1 — volume dos efeitos sonoros
+    volumeMusica: 0.5, // 0..1 — volume das músicas de fundo
+    volumeUI: 0.7, // 0..1 — volume dos efeitos de interface (menus)
   },
 
   /* --- IA (3 dificuldades) -------------------------------------------------
@@ -154,9 +215,33 @@ const CONFIG = {
      alcanceMedio  = distância (px) da zona média (projétil/aproximar)
      pulaProjetil  = chance de pular para desviar de projétil que se aproxima */
   ia: {
-    facil:   { intervalo: 0.55, agressao: 0.45, blockChance: 0.15, projChance: 0.12, alcanceAtaque: 120, alcanceMedio: 360, pulaProjetil: 0.15 },
-    medio:   { intervalo: 0.38, agressao: 0.68, blockChance: 0.35, projChance: 0.20, alcanceAtaque: 130, alcanceMedio: 380, pulaProjetil: 0.35 },
-    dificil: { intervalo: 0.26, agressao: 0.88, blockChance: 0.58, projChance: 0.28, alcanceAtaque: 136, alcanceMedio: 420, pulaProjetil: 0.55 },
+    facil: {
+      intervalo: 0.55,
+      agressao: 0.45,
+      blockChance: 0.15,
+      projChance: 0.12,
+      alcanceAtaque: 120,
+      alcanceMedio: 360,
+      pulaProjetil: 0.15,
+    },
+    medio: {
+      intervalo: 0.38,
+      agressao: 0.68,
+      blockChance: 0.35,
+      projChance: 0.2,
+      alcanceAtaque: 130,
+      alcanceMedio: 380,
+      pulaProjetil: 0.35,
+    },
+    dificil: {
+      intervalo: 0.26,
+      agressao: 0.88,
+      blockChance: 0.58,
+      projChance: 0.28,
+      alcanceAtaque: 136,
+      alcanceMedio: 420,
+      pulaProjetil: 0.55,
+    },
   },
 };
 
@@ -172,21 +257,37 @@ const ESCALA = CONFIG.movimento.escala;
 const VIDA_MAX = CONFIG.luta.vidaMax;
 const TEMPO_ROUND = CONFIG.luta.tempoRound;
 const ROUNDS_PARA_VENCER = CONFIG.luta.roundsParaVencer;
-const GOLPES = CONFIG.golpes;       // alias (compatível com a Fase 2)
+const GOLPES = CONFIG.golpes; // alias (compatível com a Fase 2)
 const PROJETEIS = CONFIG.projeteis; // alias
 
 // Mapa de teclas por SLOT (usa event.code, independente de layout).
 // Slot != personagem: o slot define as teclas; o personagem define o sprite.
 const TECLAS = {
   p1: {
-    esquerda: "KeyA", direita: "KeyD", pula: "KeyW", agacha: "KeyS",
-    soco: "KeyF", chute: "KeyG", projetil: "KeyH",
-    agarra: "KeyC", especial: "KeyV", defende: "KeyR", provoca: "KeyT",
+    esquerda: "KeyA",
+    direita: "KeyD",
+    pula: "KeyW",
+    agacha: "KeyS",
+    soco: "KeyF",
+    chute: "KeyG",
+    projetil: "KeyH",
+    agarra: "KeyC",
+    especial: "KeyV",
+    defende: "KeyR",
+    provoca: "KeyT",
   },
   p2: {
-    esquerda: "ArrowLeft", direita: "ArrowRight", pula: "ArrowUp", agacha: "ArrowDown",
-    soco: "KeyJ", chute: "KeyK", projetil: "KeyL",
-    agarra: "KeyN", especial: "KeyM", defende: "KeyP", provoca: "KeyY",
+    esquerda: "ArrowLeft",
+    direita: "ArrowRight",
+    pula: "ArrowUp",
+    agacha: "ArrowDown",
+    soco: "KeyJ",
+    chute: "KeyK",
+    projetil: "KeyL",
+    agarra: "KeyN",
+    especial: "KeyM",
+    defende: "KeyP",
+    provoca: "KeyY",
   },
 };
 
@@ -195,17 +296,40 @@ const PERSONAGENS = ["p1", "p2"];
 
 // Estados possíveis da máquina de estados (um por vez).
 const ESTADOS = {
-  IDLE: "idle", WALK: "walk", JUMP: "jump", CROUCH: "crouch",
-  PUNCH: "punch", KICK: "kick", FIREBALL: "fireball", BLOCK: "block",
-  GRAB: "grab", SPECIAL: "special",
-  HIT: "hit", KNOCKDOWN: "knockdown", GETUP: "getup", KO: "ko",
-  VICTORY: "victory", TAUNT: "taunt",
+  IDLE: "idle",
+  WALK: "walk",
+  JUMP: "jump",
+  CROUCH: "crouch",
+  PUNCH: "punch",
+  KICK: "kick",
+  FIREBALL: "fireball",
+  BLOCK: "block",
+  GRAB: "grab",
+  SPECIAL: "special",
+  HIT: "hit",
+  KNOCKDOWN: "knockdown",
+  GETUP: "getup",
+  KO: "ko",
+  VICTORY: "victory",
+  TAUNT: "taunt",
 };
 
 // Estados "livres": a cada quadro são re-derivados a partir do input.
-const ESTADOS_LIVRES = new Set([ESTADOS.IDLE, ESTADOS.WALK, ESTADOS.CROUCH, ESTADOS.BLOCK, ESTADOS.JUMP]);
+const ESTADOS_LIVRES = new Set([
+  ESTADOS.IDLE,
+  ESTADOS.WALK,
+  ESTADOS.CROUCH,
+  ESTADOS.BLOCK,
+  ESTADOS.JUMP,
+]);
 // Estados de golpe (podem abrir janela de cancelamento ao acertar).
-const ESTADOS_GOLPE = new Set([ESTADOS.PUNCH, ESTADOS.KICK, ESTADOS.GRAB, ESTADOS.SPECIAL, ESTADOS.FIREBALL]);
+const ESTADOS_GOLPE = new Set([
+  ESTADOS.PUNCH,
+  ESTADOS.KICK,
+  ESTADOS.GRAB,
+  ESTADOS.SPECIAL,
+  ESTADOS.FIREBALL,
+]);
 
 /* ===========================================================================
    1) CARREGADOR DE RECURSOS  (inalterado em relação à Fase 2)
@@ -221,8 +345,11 @@ async function carregarManifest() {
       const xhr = new XMLHttpRequest();
       xhr.open("GET", "assets/manifest.json", true);
       xhr.onload = () => {
-        try { resolve(JSON.parse(xhr.responseText)); }
-        catch (err) { reject(err); }
+        try {
+          resolve(JSON.parse(xhr.responseText));
+        } catch (err) {
+          reject(err);
+        }
       };
       xhr.onerror = () => reject(new Error("Falha ao ler manifest.json"));
       xhr.send();
@@ -256,9 +383,11 @@ class Recursos {
     // Retratos para a seleção de personagem (não fazem parte do manifest).
     const fotos = { p1: "assets/silva.png", p2: "assets/vitor.png" };
     for (const pers of Object.keys(fotos)) {
-      tarefas.push(carregarImagem(fotos[pers]).then((res) => {
-        this.retratos[pers] = res.ok ? res.img : null;
-      }));
+      tarefas.push(
+        carregarImagem(fotos[pers]).then((res) => {
+          this.retratos[pers] = res.ok ? res.img : null;
+        }),
+      );
     }
 
     for (const player of Object.keys(this.manifest.players)) {
@@ -274,7 +403,7 @@ class Recursos {
             carregarImagem(caminho).then((res) => {
               if (!res.ok) this.faltando++;
               registro.frames[i] = res;
-            })
+            }),
           );
         }
       }
@@ -284,16 +413,22 @@ class Recursos {
 
   nome(player) {
     const p = this.manifest.players[player];
-    return (p && p.nome) ? p.nome : player.toUpperCase();
+    return p && p.nome ? p.nome : player.toUpperCase();
   }
-  tem(player, anim) { return !!(this.dados[player] && this.dados[player][anim]); }
-  meta(player, anim) { return this.tem(player, anim) ? this.dados[player][anim].meta : null; }
+  tem(player, anim) {
+    return !!(this.dados[player] && this.dados[player][anim]);
+  }
+  meta(player, anim) {
+    return this.tem(player, anim) ? this.dados[player][anim].meta : null;
+  }
   frame(player, anim, indice) {
     if (!this.tem(player, anim)) return null;
     return this.dados[player][anim].frames[indice] || null;
   }
   // Retrato (foto) do personagem para a tela de seleção; null se ausente.
-  retrato(player) { return this.retratos[player] || null; }
+  retrato(player) {
+    return this.retratos[player] || null;
+  }
 }
 
 /* ===========================================================================
@@ -312,7 +447,9 @@ class Animator {
   }
 
   // Player aqui é o PERSONAGEM (sprite). Pode mudar (ver Fighter.personagem).
-  definirPlayer(player) { this.player = player; }
+  definirPlayer(player) {
+    this.player = player;
+  }
 
   tocar(anim, forcar = false) {
     if (this.anim === anim && !forcar) return;
@@ -326,21 +463,32 @@ class Animator {
   atualizar(dt) {
     if (!this.meta) return;
     const total = this.meta.frames;
-    if (total <= 1) { this.terminou = !this.meta.loop; return; }
+    if (total <= 1) {
+      this.terminou = !this.meta.loop;
+      return;
+    }
     const duracaoQuadro = 1 / this.meta.fps;
     this.timer += dt;
     while (this.timer >= duracaoQuadro) {
       this.timer -= duracaoQuadro;
       this.frame++;
       if (this.frame >= total) {
-        if (this.meta.loop) { this.frame = 0; }
-        else { this.frame = total - 1; this.terminou = true; }
+        if (this.meta.loop) {
+          this.frame = 0;
+        } else {
+          this.frame = total - 1;
+          this.terminou = true;
+        }
       }
     }
   }
 
   ehFrameAtivo() {
-    return !!(this.meta && this.meta.framesAtivos && this.meta.framesAtivos.includes(this.frame));
+    return !!(
+      this.meta &&
+      this.meta.framesAtivos &&
+      this.meta.framesAtivos.includes(this.frame)
+    );
   }
 }
 
@@ -354,17 +502,21 @@ class Animator {
 class Entrada {
   constructor() {
     this.pressionadas = new Set();
-    this.pendentes = [];      // ações de borda: {slot, acao}
-    this.confirmar = false;   // Enter/Espaço (avançar telas)
-    this.voltar = false;      // Esc (voltar telas)
-    this.bordas = [];         // todos os e.code pressionados neste quadro (menus)
+    this.pendentes = []; // ações de borda: {slot, acao}
+    this.confirmar = false; // Enter/Espaço (avançar telas)
+    this.voltar = false; // Esc (voltar telas)
+    this.bordas = []; // todos os e.code pressionados neste quadro (menus)
 
     window.addEventListener("keydown", (e) => this._onDown(e));
     window.addEventListener("keyup", (e) => this._onUp(e));
   }
 
   _onDown(e) {
-    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(e.code)) {
+    if (
+      ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Space"].includes(
+        e.code,
+      )
+    ) {
       e.preventDefault();
     }
     if (e.code === "Enter" || e.code === "Space") this.confirmar = true;
@@ -377,18 +529,25 @@ class Entrada {
     // Converte tecla -> ação de borda, por SLOT.
     for (const slot of ["p1", "p2"]) {
       const mapa = TECLAS[slot];
-      if (e.code === mapa.soco)     this.pendentes.push({ slot, acao: "soco" });
-      if (e.code === mapa.chute)    this.pendentes.push({ slot, acao: "chute" });
-      if (e.code === mapa.projetil) this.pendentes.push({ slot, acao: "projetil" });
-      if (e.code === mapa.agarra)   this.pendentes.push({ slot, acao: "agarra" });
-      if (e.code === mapa.especial) this.pendentes.push({ slot, acao: "especial" });
-      if (e.code === mapa.provoca)  this.pendentes.push({ slot, acao: "provoca" });
+      if (e.code === mapa.soco) this.pendentes.push({ slot, acao: "soco" });
+      if (e.code === mapa.chute) this.pendentes.push({ slot, acao: "chute" });
+      if (e.code === mapa.projetil)
+        this.pendentes.push({ slot, acao: "projetil" });
+      if (e.code === mapa.agarra) this.pendentes.push({ slot, acao: "agarra" });
+      if (e.code === mapa.especial)
+        this.pendentes.push({ slot, acao: "especial" });
+      if (e.code === mapa.provoca)
+        this.pendentes.push({ slot, acao: "provoca" });
     }
   }
 
-  _onUp(e) { this.pressionadas.delete(e.code); }
+  _onUp(e) {
+    this.pressionadas.delete(e.code);
+  }
 
-  estaPressionada(code) { return this.pressionadas.has(code); }
+  estaPressionada(code) {
+    return this.pressionadas.has(code);
+  }
 
   consumirAcoes(slot) {
     const minhas = this.pendentes.filter((a) => a.slot === slot);
@@ -396,10 +555,14 @@ class Entrada {
     return minhas.map((a) => a.acao);
   }
 
-  limparPendentes() { this.pendentes.length = 0; }
+  limparPendentes() {
+    this.pendentes.length = 0;
+  }
 
   // Borda única (pressionou agora) para navegação de menus.
-  borda(code) { return this.bordas.includes(code); }
+  borda(code) {
+    return this.bordas.includes(code);
+  }
 }
 
 /* ===========================================================================
@@ -416,14 +579,18 @@ class ControleTeclado {
     this.slot = slot;
     this.tipo = "humano";
   }
-  atualizar() { /* nada: o teclado já é lido pela Entrada */ }
+  atualizar() {
+    /* nada: o teclado já é lido pela Entrada */
+  }
   // Direções/defesa são lidas como "segurar".
   quer(nome) {
     const code = TECLAS[this.slot][nome];
     return code ? this.entrada.estaPressionada(code) : false;
   }
   // Ações de borda (soco, chute, projetil, agarra, especial, provoca).
-  consumir() { return this.entrada.consumirAcoes(this.slot); }
+  consumir() {
+    return this.entrada.consumirAcoes(this.slot);
+  }
 }
 
 /* 4.2) Controle por IA: observa o mundo e gera as MESMAS intenções que um
@@ -434,10 +601,10 @@ class ControleIA {
     this.tipo = "ia";
     this.cfg = CONFIG.ia[dificuldade] || CONFIG.ia.medio;
     this.dificuldade = dificuldade;
-    this.segura = new Set();   // direções/defesa "seguradas" neste frame
-    this.fila = [];            // ações de borda a emitir
-    this.plano = "esperar";    // aproximar | recuar | defender | esperar
-    this.t = 0;                // contagem regressiva até a próxima decisão
+    this.segura = new Set(); // direções/defesa "seguradas" neste frame
+    this.fila = []; // ações de borda a emitir
+    this.plano = "esperar"; // aproximar | recuar | defender | esperar
+    this.t = 0; // contagem regressiva até a próxima decisão
   }
 
   // Recalcula intenções todo frame; decide um novo "plano" em intervalos.
@@ -455,7 +622,11 @@ class ControleIA {
       for (const p of f.jogo.projeteis) {
         if (p.dono === f) continue;
         const vindo = (p.x < f.x && p.vx > 0) || (p.x > f.x && p.vx < 0);
-        if (vindo && Math.abs(p.x - f.x) < 230 && Math.random() < this.cfg.pulaProjetil * dt * 8) {
+        if (
+          vindo &&
+          Math.abs(p.x - f.x) < 230 &&
+          Math.random() < this.cfg.pulaProjetil * dt * 8
+        ) {
           this.segura.add("pula");
         }
       }
@@ -470,7 +641,8 @@ class ControleIA {
 
     // (c) Aplica o plano como "segurar".
     if (this.plano === "aproximar") this.segura.add(dirOp);
-    else if (this.plano === "recuar") this.segura.add(dirOp === "direita" ? "esquerda" : "direita");
+    else if (this.plano === "recuar")
+      this.segura.add(dirOp === "direita" ? "esquerda" : "direita");
     else if (this.plano === "defender") this.segura.add("defende");
   }
 
@@ -480,7 +652,11 @@ class ControleIA {
     const barraCheia = f.especial >= CONFIG.especial.custo;
 
     // Defender se o oponente ataca de perto (reação).
-    if (ad < c.alcanceAtaque + 25 && opAtacando && Math.random() < c.blockChance) {
+    if (
+      ad < c.alcanceAtaque + 25 &&
+      opAtacando &&
+      Math.random() < c.blockChance
+    ) {
       this.plano = "defender";
       return;
     }
@@ -499,8 +675,10 @@ class ControleIA {
       }
     } else if (ad < c.alcanceMedio) {
       // Zona média: aproximar ou soltar projétil.
-      if (Math.random() < c.projChance) { this.fila.push("projetil"); this.plano = "esperar"; }
-      else this.plano = "aproximar";
+      if (Math.random() < c.projChance) {
+        this.fila.push("projetil");
+        this.plano = "esperar";
+      } else this.plano = "aproximar";
     } else {
       // Longe: projétil de pressão ou correr para cima.
       if (Math.random() < c.projChance) {
@@ -510,8 +688,14 @@ class ControleIA {
     }
   }
 
-  quer(nome) { return this.segura.has(nome); }
-  consumir() { const f = this.fila; this.fila = []; return f; }
+  quer(nome) {
+    return this.segura.has(nome);
+  }
+  consumir() {
+    const f = this.fila;
+    this.fila = [];
+    return f;
+  }
 }
 
 /* ===========================================================================
@@ -519,9 +703,13 @@ class ControleIA {
    =========================================================================== */
 
 class Particulas {
-  constructor() { this.lista = []; }
+  constructor() {
+    this.lista = [];
+  }
 
-  _add(p) { this.lista.push(p); }
+  _add(p) {
+    this.lista.push(p);
+  }
 
   // Faíscas que explodem de um ponto (impacto de golpe/projétil/defesa).
   faiscas(x, y, n, cor, forca = 220) {
@@ -529,9 +717,16 @@ class Particulas {
       const ang = Math.random() * Math.PI * 2;
       const v = forca * (0.4 + Math.random() * 0.9);
       this._add({
-        x, y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v - 60,
-        vida: 0.25 + Math.random() * 0.25, vidaMax: 0.5,
-        raio: 1.5 + Math.random() * 2.5, cor, grav: 900, brilho: true,
+        x,
+        y,
+        vx: Math.cos(ang) * v,
+        vy: Math.sin(ang) * v - 60,
+        vida: 0.25 + Math.random() * 0.25,
+        vidaMax: 0.5,
+        raio: 1.5 + Math.random() * 2.5,
+        cor,
+        grav: 900,
+        brilho: true,
       });
     }
   }
@@ -541,10 +736,16 @@ class Particulas {
     for (let i = 0; i < n; i++) {
       const dir = Math.random() < 0.5 ? -1 : 1;
       this._add({
-        x: x + (Math.random() - 0.5) * 30, y,
-        vx: dir * (40 + Math.random() * 90), vy: -(30 + Math.random() * 60),
-        vida: 0.3 + Math.random() * 0.3, vidaMax: 0.6,
-        raio: 2 + Math.random() * 3, cor: "rgba(180,170,200,0.7)", grav: 500, brilho: false,
+        x: x + (Math.random() - 0.5) * 30,
+        y,
+        vx: dir * (40 + Math.random() * 90),
+        vy: -(30 + Math.random() * 60),
+        vida: 0.3 + Math.random() * 0.3,
+        vidaMax: 0.6,
+        raio: 2 + Math.random() * 3,
+        cor: "rgba(180,170,200,0.7)",
+        grav: 500,
+        brilho: false,
       });
     }
   }
@@ -552,9 +753,16 @@ class Particulas {
   // Ponto do rastro de projétil.
   rastro(x, y, cor) {
     this._add({
-      x: x + (Math.random() - 0.5) * 6, y: y + (Math.random() - 0.5) * 6,
-      vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30,
-      vida: 0.18, vidaMax: 0.18, raio: 2 + Math.random() * 3, cor, grav: 0, brilho: true,
+      x: x + (Math.random() - 0.5) * 6,
+      y: y + (Math.random() - 0.5) * 6,
+      vx: (Math.random() - 0.5) * 30,
+      vy: (Math.random() - 0.5) * 30,
+      vida: 0.18,
+      vidaMax: 0.18,
+      raio: 2 + Math.random() * 3,
+      cor,
+      grav: 0,
+      brilho: true,
     });
   }
 
@@ -584,7 +792,9 @@ class Particulas {
     ctx.restore();
   }
 
-  limpar() { this.lista.length = 0; }
+  limpar() {
+    this.lista.length = 0;
+  }
 }
 
 /* ===========================================================================
@@ -601,9 +811,15 @@ class AudioFX {
 
   // Cria o AudioContext na primeira interação.
   garantir() {
-    if (this.ctx) { if (this.ctx.state === "suspended") this.ctx.resume(); return; }
+    if (this.ctx) {
+      if (this.ctx.state === "suspended") this.ctx.resume();
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
-    if (!AC) { this.ligado = false; return; }
+    if (!AC) {
+      this.ligado = false;
+      return;
+    }
     this.ctx = new AC();
     this.master = this.ctx.createGain();
     this.master.gain.value = CONFIG.audio.volumeMaster;
@@ -648,14 +864,46 @@ class AudioFX {
   }
 
   // --- Sons do jogo (cada um isolado e fácil de ajustar) ---
-  soco()     { if (!this.ligado) return; this._tom(220, 90, 0.10, "square", 0.5); this._ruido(0.06, 0.25, 1200); }
-  chute()    { if (!this.ligado) return; this._tom(160, 60, 0.16, "sawtooth", 0.5); this._ruido(0.08, 0.3, 900); }
-  projetil() { if (!this.ligado) return; this._tom(520, 180, 0.22, "sine", 0.4); this._tom(260, 90, 0.22, "triangle", 0.25); }
-  acerto()   { if (!this.ligado) return; this._ruido(0.10, 0.5, 2600); this._tom(300, 120, 0.08, "square", 0.3); }
-  bloqueio() { if (!this.ligado) return; this._ruido(0.06, 0.35, 4200); this._tom(700, 500, 0.05, "square", 0.15); }
-  especial() { if (!this.ligado) return; this._tom(180, 700, 0.20, "sawtooth", 0.4); this._tom(90, 300, 0.35, "square", 0.3, 0.05); }
-  ko()       { if (!this.ligado) return; this._tom(300, 40, 0.6, "sawtooth", 0.5); this._ruido(0.5, 0.4, 800); this._tom(120, 30, 0.7, "square", 0.3, 0.05); }
-  pulo()     { if (!this.ligado) return; this._tom(300, 600, 0.10, "sine", 0.18); }
+  soco() {
+    if (!this.ligado) return;
+    this._tom(220, 90, 0.1, "square", 0.5);
+    this._ruido(0.06, 0.25, 1200);
+  }
+  chute() {
+    if (!this.ligado) return;
+    this._tom(160, 60, 0.16, "sawtooth", 0.5);
+    this._ruido(0.08, 0.3, 900);
+  }
+  projetil() {
+    if (!this.ligado) return;
+    this._tom(520, 180, 0.22, "sine", 0.4);
+    this._tom(260, 90, 0.22, "triangle", 0.25);
+  }
+  acerto() {
+    if (!this.ligado) return;
+    this._ruido(0.1, 0.5, 2600);
+    this._tom(300, 120, 0.08, "square", 0.3);
+  }
+  bloqueio() {
+    if (!this.ligado) return;
+    this._ruido(0.06, 0.35, 4200);
+    this._tom(700, 500, 0.05, "square", 0.15);
+  }
+  especial() {
+    if (!this.ligado) return;
+    this._tom(180, 700, 0.2, "sawtooth", 0.4);
+    this._tom(90, 300, 0.35, "square", 0.3, 0.05);
+  }
+  ko() {
+    if (!this.ligado) return;
+    this._tom(300, 40, 0.6, "sawtooth", 0.5);
+    this._ruido(0.5, 0.4, 800);
+    this._tom(120, 30, 0.7, "square", 0.3, 0.05);
+  }
+  pulo() {
+    if (!this.ligado) return;
+    this._tom(300, 600, 0.1, "sine", 0.18);
+  }
 }
 
 /* ===========================================================================
@@ -675,8 +923,8 @@ class MusicaFX {
   // Pré-carrega as três trilhas (chamado antes de iniciar o jogo).
   precarregar() {
     const arquivos = {
-      menu:    "assets/audio/musica_menu.mp3",
-      luta:    "assets/audio/musica_luta.mp3",
+      menu: "assets/audio/musica_menu.mp3",
+      luta: "assets/audio/musica_luta.mp3",
       vitoria: "assets/audio/musica_vitoria.mp3",
     };
     for (const [nome, src] of Object.entries(arquivos)) {
@@ -696,7 +944,10 @@ class MusicaFX {
 
     // Para a trilha anterior imediatamente.
     const anterior = this.trilhas[this.nomeAtual];
-    if (anterior) { anterior.pause(); anterior.currentTime = 0; }
+    if (anterior) {
+      anterior.pause();
+      anterior.currentTime = 0;
+    }
 
     this.nomeAtual = nome;
     const prox = this.trilhas[nome];
@@ -747,11 +998,11 @@ class SomUI {
 
   precarregar() {
     const arquivos = {
-      confirmar:  "assets/audio/sfx_confirmar.mp3",
-      navegar:    "assets/audio/sfx_navegar.mp3",
+      confirmar: "assets/audio/sfx_confirmar.mp3",
+      navegar: "assets/audio/sfx_navegar.mp3",
       personagem: "assets/audio/sfx_personagem.mp3",
       selecionar: "assets/audio/sfx_selecionar.mp3",
-      voltar:     "assets/audio/sfx_voltar.mp3",
+      voltar: "assets/audio/sfx_voltar.mp3",
     };
     for (const [nome, src] of Object.entries(arquivos)) {
       const audio = new Audio(src);
@@ -799,20 +1050,36 @@ class Projetil {
     this.tRastro += dt * 1000;
     if (this.tRastro >= CONFIG.particulas.rastroProjetilMs) {
       this.tRastro = 0;
-      this.dono.jogo.particulas.rastro(this.x - this.facing * this.raio, this.y, this.cor);
+      this.dono.jogo.particulas.rastro(
+        this.x - this.facing * this.raio,
+        this.y,
+        this.cor,
+      );
     }
 
     if (this.x < -40 || this.x > LARGURA + 40) this.vivo = false;
   }
 
   caixa() {
-    return { x: this.x - this.raio, y: this.y - this.raio, w: this.raio * 2, h: this.raio * 2 };
+    return {
+      x: this.x - this.raio,
+      y: this.y - this.raio,
+      w: this.raio * 2,
+      h: this.raio * 2,
+    };
   }
 
   desenhar(ctx) {
     const pulso = 1 + Math.sin(this.t * 18) * 0.12;
     const r = this.raio * pulso;
-    const g = ctx.createRadialGradient(this.x, this.y, 2, this.x, this.y, r * 1.6);
+    const g = ctx.createRadialGradient(
+      this.x,
+      this.y,
+      2,
+      this.x,
+      this.y,
+      r * 1.6,
+    );
     g.addColorStop(0, "#ffffff");
     g.addColorStop(0.4, this.cor);
     g.addColorStop(1, "rgba(0,0,0,0)");
@@ -843,10 +1110,10 @@ const _bufFlashCtx = _bufFlash.getContext("2d");
 class Fighter {
   constructor(recursos, slot, personagem, x, jogo, controle) {
     this.recursos = recursos;
-    this.slot = slot;              // "p1"/"p2" -> só para referência/HUD
-    this.personagem = personagem;  // "p1"/"p2" -> qual SPRITE usar
+    this.slot = slot; // "p1"/"p2" -> só para referência/HUD
+    this.personagem = personagem; // "p1"/"p2" -> qual SPRITE usar
     this.jogo = jogo;
-    this.controle = controle;      // ControleTeclado ou ControleIA
+    this.controle = controle; // ControleTeclado ou ControleIA
     this.nome = recursos.nome(personagem);
 
     this.x = x;
@@ -857,7 +1124,7 @@ class Fighter {
     this.noChao = true;
 
     this.hp = VIDA_MAX;
-    this.especial = 0;             // barra de especial (0..CONFIG.especial.max)
+    this.especial = 0; // barra de especial (0..CONFIG.especial.max)
     this.estado = ESTADOS.IDLE;
     this.estadoTempo = 0;
     this.anim = new Animator(recursos, personagem);
@@ -869,21 +1136,25 @@ class Fighter {
     this.oponente = null;
 
     // Combos / cancelamento.
-    this.janelaCancel = 0;         // tempo restante (s) para cancelar
-    this.comboContador = 0;        // golpes encadeados na sequência atual
+    this.janelaCancel = 0; // tempo restante (s) para cancelar
+    this.comboContador = 0; // golpes encadeados na sequência atual
 
     // Anti-combo-infinito (rastreamento no lado do DEFENSOR).
-    this.comboRecebido = 0;        // hits consecutivos recebidos no combo atual
-    this.comboResetTimer = 0;      // timer (s) para zerar comboRecebido após pausa no dano
+    this.comboRecebido = 0; // hits consecutivos recebidos no combo atual
+    this.comboResetTimer = 0; // timer (s) para zerar comboRecebido após pausa no dano
 
     // Game feel.
-    this.flashTimer = 0;           // duração restante do flash branco
-    this.invencivel = 0;           // invencibilidade de wakeup (s); sprite pisca
+    this.flashTimer = 0; // duração restante do flash branco
+    this.invencivel = 0; // invencibilidade de wakeup (s); sprite pisca
   }
 
   // ---- Consultas ------------------------------------------------------------
-  podeAgir() { return ESTADOS_LIVRES.has(this.estado); }
-  estaVivo() { return this.estado !== ESTADOS.KO; }
+  podeAgir() {
+    return ESTADOS_LIVRES.has(this.estado);
+  }
+  estaVivo() {
+    return this.estado !== ESTADOS.KO;
+  }
 
   hurtbox() {
     const agachado = this.estado === ESTADOS.CROUCH;
@@ -913,11 +1184,18 @@ class Fighter {
     if (!this._golpeAtivo()) return null;
     const g = GOLPES[this.golpeAtual];
     let x1, x2;
-    if (this.facing === 1) { x1 = this.x + g.alcance[0]; x2 = this.x + g.alcance[1]; }
-    else                   { x1 = this.x - g.alcance[1]; x2 = this.x - g.alcance[0]; }
+    if (this.facing === 1) {
+      x1 = this.x + g.alcance[0];
+      x2 = this.x + g.alcance[1];
+    } else {
+      x1 = this.x - g.alcance[1];
+      x2 = this.x - g.alcance[0];
+    }
     return {
-      x: Math.min(x1, x2), y: this.y + g.altura[0],
-      w: Math.abs(x2 - x1), h: g.altura[1] - g.altura[0],
+      x: Math.min(x1, x2),
+      y: this.y + g.altura[0],
+      w: Math.abs(x2 - x1),
+      h: g.altura[1] - g.altura[0],
     };
   }
 
@@ -940,23 +1218,40 @@ class Fighter {
     const r = this.recursos;
     const fb = (nome, alt) => (r.tem(this.personagem, nome) ? nome : alt);
     switch (estado) {
-      case ESTADOS.IDLE:   return "idle";
-      case ESTADOS.WALK:   return this._avancando() ? fb("run", "walk") : "walk";
-      case ESTADOS.JUMP:   return fb("run", "idle");
-      case ESTADOS.CROUCH: return fb("item", "idle");
-      case ESTADOS.BLOCK:  return fb("block", "idle");
-      case ESTADOS.HIT:    return fb("hit", "idle");
-      case ESTADOS.KNOCKDOWN: return fb("knockdown", "hit");
-      case ESTADOS.GETUP:  return fb("getup", "idle");
-      case ESTADOS.KO:     return fb("ko", "knockdown");
-      case ESTADOS.VICTORY: return fb("taunt", "idle");
-      case ESTADOS.TAUNT:  return fb("taunt", "idle");
-      case ESTADOS.PUNCH:  return this.golpeAtual || "punch";
-      case ESTADOS.KICK:   return this.golpeAtual || "kick";
-      case ESTADOS.FIREBALL: return this.golpeAtual || "fireball";
-      case ESTADOS.GRAB:   return fb("item", "punch");                 // agarrão usa "item"
-      case ESTADOS.SPECIAL: return fb("special", "item");              // especial usa "special"/"item"
-      default: return "idle";
+      case ESTADOS.IDLE:
+        return "idle";
+      case ESTADOS.WALK:
+        return this._avancando() ? fb("run", "walk") : "walk";
+      case ESTADOS.JUMP:
+        return fb("run", "idle");
+      case ESTADOS.CROUCH:
+        return fb("item", "idle");
+      case ESTADOS.BLOCK:
+        return fb("block", "idle");
+      case ESTADOS.HIT:
+        return fb("hit", "idle");
+      case ESTADOS.KNOCKDOWN:
+        return fb("knockdown", "hit");
+      case ESTADOS.GETUP:
+        return fb("getup", "idle");
+      case ESTADOS.KO:
+        return fb("ko", "knockdown");
+      case ESTADOS.VICTORY:
+        return fb("taunt", "idle");
+      case ESTADOS.TAUNT:
+        return fb("taunt", "idle");
+      case ESTADOS.PUNCH:
+        return this.golpeAtual || "punch";
+      case ESTADOS.KICK:
+        return this.golpeAtual || "kick";
+      case ESTADOS.FIREBALL:
+        return this.golpeAtual || "fireball";
+      case ESTADOS.GRAB:
+        return fb("item", "punch"); // agarrão usa "item"
+      case ESTADOS.SPECIAL:
+        return fb("special", "item"); // especial usa "special"/"item"
+      default:
+        return "idle";
     }
   }
 
@@ -971,20 +1266,24 @@ class Fighter {
   // ---- Ações ----------------------------------------------------------------
   iniciarSoco(movendo) {
     let anim = "punch";
-    if (movendo && this.recursos.tem(this.personagem, "punch_step")) anim = "punch_step";
+    if (movendo && this.recursos.tem(this.personagem, "punch_step"))
+      anim = "punch_step";
     this.irPara(ESTADOS.PUNCH, true, anim);
   }
 
   iniciarChute(agachado, noAr) {
     let anim = "kick";
-    if (noAr && this.recursos.tem(this.personagem, "kick_jump")) anim = "kick_jump";
-    else if (agachado && this.recursos.tem(this.personagem, "kick_mid")) anim = "kick_mid";
+    if (noAr && this.recursos.tem(this.personagem, "kick_jump"))
+      anim = "kick_jump";
+    else if (agachado && this.recursos.tem(this.personagem, "kick_mid"))
+      anim = "kick_mid";
     this.irPara(ESTADOS.KICK, true, anim);
   }
 
   iniciarProjetil(agachado) {
     let anim = "fireball";
-    if (agachado && this.recursos.tem(this.personagem, "special")) anim = "special";
+    if (agachado && this.recursos.tem(this.personagem, "special"))
+      anim = "special";
     if (!this.recursos.tem(this.personagem, anim)) anim = "fireball";
     this.irPara(ESTADOS.FIREBALL, true, anim);
   }
@@ -1015,7 +1314,8 @@ class Fighter {
     const atacanteDoLado =
       (info.origemX <= this.x && this.facing === -1) ||
       (info.origemX >= this.x && this.facing === 1);
-    const bloqueando = this.estado === ESTADOS.BLOCK && atacanteDoLado && !info.ignoraBloqueio;
+    const bloqueando =
+      this.estado === ESTADOS.BLOCK && atacanteDoLado && !info.ignoraBloqueio;
 
     if (bloqueando) {
       // Defesa: chip mínimo + recuo curto; bloquear quebra o combo recebido.
@@ -1033,18 +1333,22 @@ class Fighter {
     // Scaling de dano: hits consecutivos causam progressivamente menos dano,
     // desincentivando combos longos sem eliminar a mecânica de combo.
     const scalingIdx = Math.min(this.comboRecebido, cc.scalingDano.length - 1);
-    const dano = Math.max(1, Math.round(info.dano * cc.scalingDano[scalingIdx]));
+    const dano = Math.max(
+      1,
+      Math.round(info.dano * cc.scalingDano[scalingIdx]),
+    );
 
     // Scaling de knockback: cada hit empurra mais para forçar reposicionamento.
     // No 3º hit: knockback × 2,05 — suficiente para quebrar o range do combo.
-    const knockback = info.knockback * (1 + cc.pushbackPorHit * this.comboRecebido);
+    const knockback =
+      info.knockback * (1 + cc.pushbackPorHit * this.comboRecebido);
 
     // Avança o contador e reinicia o timer de reset do combo recebido.
     this.comboRecebido++;
     this.comboResetTimer = cc.comboResetMs / 1000;
 
     // Após hitMaxSequencia hits consecutivos, forçar knockdown independente do golpe.
-    const derruba = info.derruba || (this.comboRecebido >= cc.hitMaxSequencia);
+    const derruba = info.derruba || this.comboRecebido >= cc.hitMaxSequencia;
 
     this.hp = Math.max(0, this.hp - dano);
     this.ganharEspecial(CONFIG.especial.ganhoAoApanhar);
@@ -1079,7 +1383,10 @@ class Fighter {
     if (this.invencivel > 0) this.invencivel -= dt;
     if (this.comboResetTimer > 0) {
       this.comboResetTimer -= dt;
-      if (this.comboResetTimer <= 0) { this.comboResetTimer = 0; this.comboRecebido = 0; }
+      if (this.comboResetTimer <= 0) {
+        this.comboResetTimer = 0;
+        this.comboRecebido = 0;
+      }
     }
 
     if (this.podeAgir() && this.oponente) {
@@ -1087,14 +1394,16 @@ class Fighter {
     }
 
     // Pensamento da IA acontece junto do controle (gera intenções deste frame).
-    if (podeControlar && this.controle.atualizar) this.controle.atualizar(dt, this);
+    if (podeControlar && this.controle.atualizar)
+      this.controle.atualizar(dt, this);
 
     if (podeControlar) this._processarInput();
 
     this._fisica(dt);
     this._transicoes();
 
-    if (this.estado === ESTADOS.WALK) this.anim.tocar(this._animDoEstado(ESTADOS.WALK));
+    if (this.estado === ESTADOS.WALK)
+      this.anim.tocar(this._animDoEstado(ESTADOS.WALK));
     this.anim.atualizar(dt);
 
     // CROUCH: mantém sempre o frame 0 da pose agachada (item_0).
@@ -1102,8 +1411,11 @@ class Fighter {
     if (this.estado === ESTADOS.CROUCH) this.anim.frame = 0;
 
     // Lança projétil/super no frame ativo de FIREBALL/SPECIAL.
-    if ((this.estado === ESTADOS.FIREBALL || this.estado === ESTADOS.SPECIAL) &&
-        !this.projetilLancado && this._golpeAtivo()) {
+    if (
+      (this.estado === ESTADOS.FIREBALL || this.estado === ESTADOS.SPECIAL) &&
+      !this.projetilLancado &&
+      this._golpeAtivo()
+    ) {
       this.jogo.projeteis.push(new Projetil(this, this.golpeAtual));
       this.projetilLancado = true;
       this.jogo.audio.projetil();
@@ -1116,12 +1428,33 @@ class Fighter {
     /* --- CANCELAMENTO DE COMBO -------------------------------------------
        Se um golpe CANCELÁVEL acertou e ainda estamos na janela, um novo
        comando interrompe a recuperação e encadeia o próximo golpe. */
-    if (!this.podeAgir() && this.janelaCancel > 0 &&
-        GOLPES[this.golpeAtual] && GOLPES[this.golpeAtual].cancelavel &&
-        this.comboContador < CONFIG.combo.maxCombo) {
-      if (acoes.includes("chute"))   { this.comboContador++; this.iniciarChute(false, !this.noChao); this.jogo.audio.chute(); return; }
-      if (acoes.includes("soco"))    { this.comboContador++; this.iniciarSoco(false); this.jogo.audio.soco(); return; }
-      if (acoes.includes("especial") && this.especial >= CONFIG.especial.custo) { this.comboContador++; this.iniciarEspecial(); return; }
+    if (
+      !this.podeAgir() &&
+      this.janelaCancel > 0 &&
+      GOLPES[this.golpeAtual] &&
+      GOLPES[this.golpeAtual].cancelavel &&
+      this.comboContador < CONFIG.combo.maxCombo
+    ) {
+      if (acoes.includes("chute")) {
+        this.comboContador++;
+        this.iniciarChute(false, !this.noChao);
+        this.jogo.audio.chute();
+        return;
+      }
+      if (acoes.includes("soco")) {
+        this.comboContador++;
+        this.iniciarSoco(false);
+        this.jogo.audio.soco();
+        return;
+      }
+      if (
+        acoes.includes("especial") &&
+        this.especial >= CONFIG.especial.custo
+      ) {
+        this.comboContador++;
+        this.iniciarEspecial();
+        return;
+      }
     }
 
     // --- Estados livres: deriva movimento/defesa/agachar a cada quadro ---
@@ -1134,18 +1467,44 @@ class Fighter {
       const agachado = this.estado === ESTADOS.CROUCH;
 
       // Ações de borda (prioridade).
-      if (acoes.includes("especial") && this.especial >= CONFIG.especial.custo && this.noChao) {
-        this.comboContador = 1; this.iniciarEspecial(); return;
+      if (
+        acoes.includes("especial") &&
+        this.especial >= CONFIG.especial.custo &&
+        this.noChao
+      ) {
+        this.comboContador = 1;
+        this.iniciarEspecial();
+        return;
       }
-      if (acoes.includes("agarra") && this.noChao)    { this.comboContador = 1; this.iniciarAgarra(); return; }
-      if (acoes.includes("soco"))     { this.comboContador = 1; this.iniciarSoco(querEsq || querDir); this.jogo.audio.soco(); return; }
-      if (acoes.includes("chute"))    { this.comboContador = 1; this.iniciarChute(agachado, !this.noChao); this.jogo.audio.chute(); return; }
-      if (acoes.includes("projetil")) { this.iniciarProjetil(agachado); return; }
-      if (acoes.includes("provoca") && this.noChao) { this.irPara(ESTADOS.TAUNT, true); return; }
+      if (acoes.includes("agarra") && this.noChao) {
+        this.comboContador = 1;
+        this.iniciarAgarra();
+        return;
+      }
+      if (acoes.includes("soco")) {
+        this.comboContador = 1;
+        this.iniciarSoco(querEsq || querDir);
+        this.jogo.audio.soco();
+        return;
+      }
+      if (acoes.includes("chute")) {
+        this.comboContador = 1;
+        this.iniciarChute(agachado, !this.noChao);
+        this.jogo.audio.chute();
+        return;
+      }
+      if (acoes.includes("projetil")) {
+        this.iniciarProjetil(agachado);
+        return;
+      }
+      if (acoes.includes("provoca") && this.noChao) {
+        this.irPara(ESTADOS.TAUNT, true);
+        return;
+      }
 
       if (!this.noChao) {
         // Controle direcional no ar: segura ← ou → para mover lateralmente.
-        if (querDir)      this.vx =  CONFIG.movimento.velPuloLateral;
+        if (querDir) this.vx = CONFIG.movimento.velPuloLateral;
         else if (querEsq) this.vx = -CONFIG.movimento.velPuloLateral;
         // Sem tecla: momentum atual é preservado (sem atrito no ar — ver _fisica).
         this.irPara(ESTADOS.JUMP);
@@ -1156,19 +1515,27 @@ class Fighter {
         this.vy = -FORCA_PULO;
         this.noChao = false;
         // Velocidade horizontal inicial do pulo (direção pressionada no momento).
-        if (querDir)      this.vx =  CONFIG.movimento.velPuloLateral;
+        if (querDir) this.vx = CONFIG.movimento.velPuloLateral;
         else if (querEsq) this.vx = -CONFIG.movimento.velPuloLateral;
-        else              this.vx = 0; // pulo reto
+        else this.vx = 0; // pulo reto
         this.irPara(ESTADOS.JUMP, true);
         this.jogo.audio.pulo();
         return;
       }
-      if (querDefende) { this.vx = 0; this.irPara(ESTADOS.BLOCK); return; }
-      if (querAgacha)  { this.vx = 0; this.irPara(ESTADOS.CROUCH); return; }
+      if (querDefende) {
+        this.vx = 0;
+        this.irPara(ESTADOS.BLOCK);
+        return;
+      }
+      if (querAgacha) {
+        this.vx = 0;
+        this.irPara(ESTADOS.CROUCH);
+        return;
+      }
 
       if (querEsq || querDir) {
         const dir = querDir ? 1 : -1;
-        const avancando = (dir === this.facing);
+        const avancando = dir === this.facing;
         this.vx = dir * (avancando ? VEL_CORRER : VEL_ANDAR);
         this.irPara(ESTADOS.WALK);
       } else {
@@ -1198,7 +1565,11 @@ class Fighter {
       this.noChao = true;
       if (estavaNoAr) {
         // Poeira ao pousar (NOVO).
-        this.jogo.particulas.poeira(this.x, CHAO_Y, CONFIG.particulas.poeiraPulo);
+        this.jogo.particulas.poeira(
+          this.x,
+          CHAO_Y,
+          CONFIG.particulas.poeiraPulo,
+        );
         if (this.estado === ESTADOS.JUMP) this.irPara(ESTADOS.IDLE, true);
       }
     } else {
@@ -1221,7 +1592,9 @@ class Fighter {
         // (Cancels ainda funcionam: eles interrompem o recovery do hit anterior.)
         if (this.anim.terminou) {
           const fd = GOLPES[this.golpeAtual];
-          const durAnim = this.anim.meta ? this.anim.meta.frames / this.anim.meta.fps : 0;
+          const durAnim = this.anim.meta
+            ? this.anim.meta.frames / this.anim.meta.fps
+            : 0;
           const minDuracao = fd ? durAnim + fd.recovery / 60 : durAnim;
           if (this.estadoTempo >= minDuracao) this.irPara(ESTADOS.IDLE, true);
         }
@@ -1231,7 +1604,8 @@ class Fighter {
         if (this.anim.terminou) this.irPara(ESTADOS.IDLE, true);
         break;
       case ESTADOS.HIT:
-        if (this.anim.terminou && this.estadoTempo > 0.25) this.irPara(ESTADOS.IDLE, true);
+        if (this.anim.terminou && this.estadoTempo > 0.25)
+          this.irPara(ESTADOS.IDLE, true);
         break;
       case ESTADOS.KNOCKDOWN:
         if (this.noChao && this.estadoTempo > 0.7) {
@@ -1259,7 +1633,11 @@ class Fighter {
 
   // ---- Desenho --------------------------------------------------------------
   desenhar(ctx, debug) {
-    const fr = this.recursos.frame(this.personagem, this.anim.anim, this.anim.frame);
+    const fr = this.recursos.frame(
+      this.personagem,
+      this.anim.anim,
+      this.anim.frame,
+    );
     const dw = this.recursos.frameW * ESCALA;
     const dh = this.recursos.frameH * ESCALA;
     const dx = this.x - dw / 2;
@@ -1273,7 +1651,8 @@ class Fighter {
     }
 
     // Flicker durante invencibilidade de wakeup (oculta a cada ~2 frames visuais).
-    const flickerOculto = this.invencivel > 0 && Math.floor(this.invencivel * 14) % 2 === 0;
+    const flickerOculto =
+      this.invencivel > 0 && Math.floor(this.invencivel * 14) % 2 === 0;
 
     if (fr && fr.ok) {
       if (!flickerOculto) {
@@ -1282,9 +1661,16 @@ class Fighter {
 
         // FLASH BRANCO: redesenha o sprite tingido respeitando o alpha (NOVO).
         if (this.flashTimer > 0) {
-          const intensidade = Math.min(1, this.flashTimer / (CONFIG.gameFeel.flashMs / 1000));
-          const fw = this.recursos.frameW, fh = this.recursos.frameH;
-          if (_bufFlash.width !== fw) { _bufFlash.width = fw; _bufFlash.height = fh; }
+          const intensidade = Math.min(
+            1,
+            this.flashTimer / (CONFIG.gameFeel.flashMs / 1000),
+          );
+          const fw = this.recursos.frameW,
+            fh = this.recursos.frameH;
+          if (_bufFlash.width !== fw) {
+            _bufFlash.width = fw;
+            _bufFlash.height = fh;
+          }
           _bufFlashCtx.clearRect(0, 0, fw, fh);
           _bufFlashCtx.drawImage(fr.img, 0, 0, fw, fh);
           _bufFlashCtx.globalCompositeOperation = "source-atop";
@@ -1310,14 +1696,21 @@ class Fighter {
       ctx.strokeStyle = "#3df";
       ctx.strokeRect(hb.x, hb.y, hb.w, hb.h);
       const hit = this.hitbox();
-      if (hit) { ctx.strokeStyle = "#f33"; ctx.strokeRect(hit.x, hit.y, hit.w, hit.h); }
+      if (hit) {
+        ctx.strokeStyle = "#f33";
+        ctx.strokeRect(hit.x, hit.y, hit.w, hit.h);
+      }
       // Frame data do golpe atual (NOVO no debug).
       if (this.golpeAtual && GOLPES[this.golpeAtual]) {
         const fd = GOLPES[this.golpeAtual];
         ctx.fillStyle = "#ff3";
         ctx.font = "11px monospace";
         ctx.textAlign = "center";
-        ctx.fillText(`${this.golpeAtual} s${fd.startup}/a${fd.ativo}/r${fd.recovery} d${fd.dano}`, this.x, this.y - 200);
+        ctx.fillText(
+          `${this.golpeAtual} s${fd.startup}/a${fd.ativo}/r${fd.recovery} d${fd.dano}`,
+          this.x,
+          this.y - 200,
+        );
       }
     }
   }
@@ -1327,15 +1720,24 @@ class Fighter {
    9) COLISÃO AABB
    =========================================================================== */
 function colideAABB(a, b) {
-  return a.x < b.x + b.w && a.x + a.w > b.x &&
-         a.y < b.y + b.h && a.y + a.h > b.y;
+  return (
+    a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y
+  );
 }
 
 /* ===========================================================================
    10) JOGO — telas, rounds, timer, HUD, hit stop, screen shake, game loop.
    =========================================================================== */
 
-const TELAS = { START: "start", MODO: "modo", DIFICULDADE: "dificuldade", SELECT: "select", LUTA: "luta", VITORIA: "vitoria", CONFIG: "config" };
+const TELAS = {
+  START: "start",
+  MODO: "modo",
+  DIFICULDADE: "dificuldade",
+  SELECT: "select",
+  LUTA: "luta",
+  VITORIA: "vitoria",
+  CONFIG: "config",
+};
 
 /* ===========================================================================
    CONFIGURAÇÕES — array de descritores de cada item do menu.
@@ -1350,9 +1752,13 @@ const CONFIGS = [
     id: "volumeMusica",
     label: "Volume Música",
     tipo: "slider",
-    min: 0, max: 1, step: 0.05,
+    min: 0,
+    max: 1,
+    step: 0.05,
     get: () => CONFIG.audio.volumeMusica,
-    set: (v) => { CONFIG.audio.volumeMusica = v; },
+    set: (v) => {
+      CONFIG.audio.volumeMusica = v;
+    },
     aplicar: (v, jogo) => {
       // Atualiza a faixa que já está tocando.
       const trilha = jogo.musica.trilhas[jogo.musica.nomeAtual];
@@ -1363,9 +1769,14 @@ const CONFIGS = [
     id: "volumeEfeitos",
     label: "Volume Efeitos",
     tipo: "slider",
-    min: 0, max: 1, step: 0.05,
+    min: 0,
+    max: 1,
+    step: 0.05,
     get: () => CONFIG.audio.volumeMaster,
-    set: (v) => { CONFIG.audio.volumeMaster = v; CONFIG.audio.volumeUI = v; },
+    set: (v) => {
+      CONFIG.audio.volumeMaster = v;
+      CONFIG.audio.volumeUI = v;
+    },
     aplicar: (v, jogo) => {
       // Atualiza o gain do Web Audio (efeitos de combate) em tempo real.
       if (jogo.audio.master) jogo.audio.master.gain.value = v;
@@ -1403,24 +1814,27 @@ class Jogo {
     this.terminouPorKO = false;
 
     // Configuração de partida (definida nas telas MODO/SELECT).
-    this.modo = "2p";              // "1p" | "2p"
+    this.modo = "2p"; // "1p" | "2p"
     this.dificuldade = "medio";
     this.escolha = { p1: 0, p2: 1 }; // índices em PERSONAGENS
     this.confirmado = { p1: false, p2: false };
 
     // Game feel global.
-    this.hitStop = 0;              // tempo congelado restante (s)
-    this.shake = 0;                // intensidade atual do tremor
-    this.menuIndex = 0;            // navegação da tela MODO
-    this.dificuldadeIndex = 0;     // navegação da tela DIFICULDADE
-    this.configIndex = 0;          // navegação da tela CONFIG
+    this.hitStop = 0; // tempo congelado restante (s)
+    this.shake = 0; // intensidade atual do tremor
+    this.menuIndex = 0; // navegação da tela MODO
+    this.dificuldadeIndex = 0; // navegação da tela DIFICULDADE
+    this.configIndex = 0; // navegação da tela CONFIG
     this.telaAnteriorConfig = TELAS.MODO; // para onde ESC leva ao sair das configs
 
     this.p1 = null;
     this.p2 = null;
 
     window.addEventListener("keydown", (e) => {
-      if (e.code === "F1") { e.preventDefault(); this.debug = !this.debug; }
+      if (e.code === "F1") {
+        e.preventDefault();
+        this.debug = !this.debug;
+      }
     });
   }
 
@@ -1430,12 +1844,27 @@ class Jogo {
     const persP2 = PERSONAGENS[this.escolha.p2];
 
     const controleP1 = new ControleTeclado(this.entrada, "p1");
-    const controleP2 = this.modo === "1p"
-      ? new ControleIA(this.dificuldade)
-      : new ControleTeclado(this.entrada, "p2");
+    const controleP2 =
+      this.modo === "1p"
+        ? new ControleIA(this.dificuldade)
+        : new ControleTeclado(this.entrada, "p2");
 
-    this.p1 = new Fighter(this.recursos, "p1", persP1, LARGURA * 0.32, this, controleP1);
-    this.p2 = new Fighter(this.recursos, "p2", persP2, LARGURA * 0.68, this, controleP2);
+    this.p1 = new Fighter(
+      this.recursos,
+      "p1",
+      persP1,
+      LARGURA * 0.32,
+      this,
+      controleP1,
+    );
+    this.p2 = new Fighter(
+      this.recursos,
+      "p2",
+      persP2,
+      LARGURA * 0.68,
+      this,
+      controleP2,
+    );
     this.p1.oponente = this.p2;
     this.p2.oponente = this.p1;
     this.p1.facing = 1;
@@ -1447,15 +1876,26 @@ class Jogo {
     this.particulas.limpar();
     this.hitStop = 0;
     this.shake = 0;
-    this.p1.x = LARGURA * 0.32; this.p1.y = CHAO_Y; this.p1.vx = 0; this.p1.vy = 0;
-    this.p2.x = LARGURA * 0.68; this.p2.y = CHAO_Y; this.p2.vx = 0; this.p2.vy = 0;
-    this.p1.hp = VIDA_MAX; this.p2.hp = VIDA_MAX;
-    this.p1.especial = 0; this.p2.especial = 0;
-    this.p1.comboRecebido = 0; this.p1.comboResetTimer = 0;
-    this.p2.comboRecebido = 0; this.p2.comboResetTimer = 0;
+    this.p1.x = LARGURA * 0.32;
+    this.p1.y = CHAO_Y;
+    this.p1.vx = 0;
+    this.p1.vy = 0;
+    this.p2.x = LARGURA * 0.68;
+    this.p2.y = CHAO_Y;
+    this.p2.vx = 0;
+    this.p2.vy = 0;
+    this.p1.hp = VIDA_MAX;
+    this.p2.hp = VIDA_MAX;
+    this.p1.especial = 0;
+    this.p2.especial = 0;
+    this.p1.comboRecebido = 0;
+    this.p1.comboResetTimer = 0;
+    this.p2.comboRecebido = 0;
+    this.p2.comboResetTimer = 0;
     this.p1.irPara(ESTADOS.IDLE, true);
     this.p2.irPara(ESTADOS.IDLE, true);
-    this.p1.facing = 1; this.p2.facing = -1;
+    this.p1.facing = 1;
+    this.p2.facing = -1;
     this.tempoRestante = TEMPO_ROUND;
     this.faseRound = "anuncio";
     this.timerFase = 0;
@@ -1500,20 +1940,47 @@ class Jogo {
   _atualizar(dt) {
     // --- Telas de menu ---
     if (this.tela === TELAS.START) {
-      if (this.entrada.confirmar) { this.audio.garantir(); this.somUI.tocar("confirmar"); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) {
+        this.audio.garantir();
+        this.somUI.tocar("confirmar");
+        this.musica.tocar("menu");
+        this.tela = TELAS.MODO;
+        this.menuIndex = 0;
+      }
       this.entrada.limparPendentes();
       return;
     }
-    if (this.tela === TELAS.MODO)        { this._atualizarModo();        this.entrada.limparPendentes(); return; }
-    if (this.tela === TELAS.DIFICULDADE) { this._atualizarDificuldade();  this.entrada.limparPendentes(); return; }
-    if (this.tela === TELAS.SELECT)      { this._atualizarSelect();       this.entrada.limparPendentes(); return; }
-    if (this.tela === TELAS.CONFIG)      { this._atualizarConfig();       this.entrada.limparPendentes(); return; }
+    if (this.tela === TELAS.MODO) {
+      this._atualizarModo();
+      this.entrada.limparPendentes();
+      return;
+    }
+    if (this.tela === TELAS.DIFICULDADE) {
+      this._atualizarDificuldade();
+      this.entrada.limparPendentes();
+      return;
+    }
+    if (this.tela === TELAS.SELECT) {
+      this._atualizarSelect();
+      this.entrada.limparPendentes();
+      return;
+    }
+    if (this.tela === TELAS.CONFIG) {
+      this._atualizarConfig();
+      this.entrada.limparPendentes();
+      return;
+    }
 
     if (this.tela === TELAS.VITORIA) {
       this.p1.atualizar(dt, false);
       this.p2.atualizar(dt, false);
       this.particulas.atualizar(dt);
-      if (this.entrada.confirmar) { this.somUI.tocar("confirmar"); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) {
+        this.somUI.tocar("confirmar");
+        this.musica.tocar("menu");
+        this.tela = TELAS.MODO;
+        this.menuIndex = 0;
+      }
       this.entrada.limparPendentes();
       return;
     }
@@ -1526,7 +1993,10 @@ class Jogo {
       this.p1.atualizar(dt, false);
       this.p2.atualizar(dt, false);
       this.particulas.atualizar(dt);
-      if (this.timerFase > 1.6) { this.faseRound = "lutando"; this.timerFase = 0; }
+      if (this.timerFase > 1.6) {
+        this.faseRound = "lutando";
+        this.timerFase = 0;
+      }
       this.entrada.limparPendentes();
       return;
     }
@@ -1565,8 +2035,13 @@ class Jogo {
       this._atualizarProjeteis(dt);
       this.particulas.atualizar(dt);
       if (this.timerFase > 2.6) {
-        if (this.vencedorPartida) { this.tela = TELAS.VITORIA; this.musica.tocar("vitoria"); }
-        else { this.roundAtual++; this._iniciarRound(); }
+        if (this.vencedorPartida) {
+          this.tela = TELAS.VITORIA;
+          this.musica.tocar("vitoria");
+        } else {
+          this.roundAtual++;
+          this._iniciarRound();
+        }
       }
       this.entrada.limparPendentes();
       return;
@@ -1577,11 +2052,17 @@ class Jogo {
   _atualizarModo() {
     const total = 3;
     const anteriorIndex = this.menuIndex;
-    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.menuIndex = (this.menuIndex + total - 1) % total;
-    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.menuIndex = (this.menuIndex + 1) % total;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))
+      this.menuIndex = (this.menuIndex + total - 1) % total;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown"))
+      this.menuIndex = (this.menuIndex + 1) % total;
     if (this.menuIndex !== anteriorIndex) this.somUI.tocar("navegar");
 
-    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.START; return; }
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.tela = TELAS.START;
+      return;
+    }
 
     if (this.entrada.confirmar) {
       this.somUI.tocar("confirmar");
@@ -1608,11 +2089,17 @@ class Jogo {
   _atualizarDificuldade() {
     const total = 3;
     const anteriorIndex = this.dificuldadeIndex;
-    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.dificuldadeIndex = (this.dificuldadeIndex + total - 1) % total;
-    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.dificuldadeIndex = (this.dificuldadeIndex + 1) % total;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))
+      this.dificuldadeIndex = (this.dificuldadeIndex + total - 1) % total;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown"))
+      this.dificuldadeIndex = (this.dificuldadeIndex + 1) % total;
     if (this.dificuldadeIndex !== anteriorIndex) this.somUI.tocar("navegar");
 
-    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.MODO; return; }
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.tela = TELAS.MODO;
+      return;
+    }
 
     if (this.entrada.confirmar) {
       const dificuldades = ["facil", "medio", "dificil"];
@@ -1627,36 +2114,58 @@ class Jogo {
 
   // --- Tela SELECT: cada jogador escolhe um dos dois personagens ---
   _atualizarSelect() {
-    if (this.entrada.voltar) { this.somUI.tocar("voltar"); this.tela = TELAS.MODO; return; }
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.tela = TELAS.MODO;
+      return;
+    }
     const n = PERSONAGENS.length;
 
     // Jogador 1 navega com A/D e confirma com soco (F) ou Enter.
     if (!this.confirmado.p1) {
       const ant1 = this.escolha.p1;
-      if (this.entrada.borda("KeyA")) this.escolha.p1 = (this.escolha.p1 + n - 1) % n;
-      if (this.entrada.borda("KeyD")) this.escolha.p1 = (this.escolha.p1 + 1) % n;
+      if (this.entrada.borda("KeyA"))
+        this.escolha.p1 = (this.escolha.p1 + n - 1) % n;
+      if (this.entrada.borda("KeyD"))
+        this.escolha.p1 = (this.escolha.p1 + 1) % n;
       if (this.escolha.p1 !== ant1) this.somUI.tocar("personagem");
-      if (this.entrada.borda(TECLAS.p1.soco)) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
+      if (this.entrada.borda(TECLAS.p1.soco)) {
+        this.confirmado.p1 = true;
+        this.somUI.tocar("selecionar");
+      }
     }
 
     if (this.modo === "2p") {
       // Jogador 2 navega com ← → e confirma com soco (J).
       if (!this.confirmado.p2) {
         const ant2 = this.escolha.p2;
-        if (this.entrada.borda("ArrowLeft"))  this.escolha.p2 = (this.escolha.p2 + n - 1) % n;
-        if (this.entrada.borda("ArrowRight")) this.escolha.p2 = (this.escolha.p2 + 1) % n;
+        if (this.entrada.borda("ArrowLeft"))
+          this.escolha.p2 = (this.escolha.p2 + n - 1) % n;
+        if (this.entrada.borda("ArrowRight"))
+          this.escolha.p2 = (this.escolha.p2 + 1) % n;
         if (this.escolha.p2 !== ant2) this.somUI.tocar("personagem");
-        if (this.entrada.borda(TECLAS.p2.soco)) { this.confirmado.p2 = true; this.somUI.tocar("selecionar"); }
+        if (this.entrada.borda(TECLAS.p2.soco)) {
+          this.confirmado.p2 = true;
+          this.somUI.tocar("selecionar");
+        }
       }
       // Enter confirma quem ainda falta (atalho).
       if (this.entrada.confirmar) {
-        if (!this.confirmado.p1) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
-        else if (!this.confirmado.p2) { this.confirmado.p2 = true; this.somUI.tocar("selecionar"); }
+        if (!this.confirmado.p1) {
+          this.confirmado.p1 = true;
+          this.somUI.tocar("selecionar");
+        } else if (!this.confirmado.p2) {
+          this.confirmado.p2 = true;
+          this.somUI.tocar("selecionar");
+        }
       }
     } else {
       // 1 Player: a CPU pega o personagem oposto até o P1 confirmar.
       if (!this.confirmado.p1) this.escolha.p2 = (this.escolha.p1 + 1) % n;
-      if (this.entrada.confirmar) { this.confirmado.p1 = true; this.somUI.tocar("selecionar"); }
+      if (this.entrada.confirmar) {
+        this.confirmado.p1 = true;
+        this.somUI.tocar("selecionar");
+      }
       this.confirmado.p2 = this.confirmado.p1;
     }
 
@@ -1668,8 +2177,10 @@ class Jogo {
     const total = CONFIGS.length;
     const anteriorIndex = this.configIndex;
 
-    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))   this.configIndex = (this.configIndex + total - 1) % total;
-    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown")) this.configIndex = (this.configIndex + 1) % total;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))
+      this.configIndex = (this.configIndex + total - 1) % total;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown"))
+      this.configIndex = (this.configIndex + 1) % total;
     if (this.configIndex !== anteriorIndex) this.somUI.tocar("navegar");
 
     if (this.entrada.voltar) {
@@ -1684,15 +2195,26 @@ class Jogo {
 
     if (item.tipo === "slider") {
       let alterou = false;
-      if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft"))  { item.set(Math.max(item.min, +(item.get() - item.step).toFixed(2))); alterou = true; }
-      if (this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight")) { item.set(Math.min(item.max, +(item.get() + item.step).toFixed(2))); alterou = true; }
+      if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft")) {
+        item.set(Math.max(item.min, +(item.get() - item.step).toFixed(2)));
+        alterou = true;
+      }
+      if (this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight")) {
+        item.set(Math.min(item.max, +(item.get() + item.step).toFixed(2)));
+        alterou = true;
+      }
       if (alterou) {
         item.aplicar(item.get(), this);
         this.somUI.tocar("navegar");
       }
     } else if (item.tipo === "toggle") {
-      if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft") ||
-          this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight") || this.entrada.confirmar) {
+      if (
+        this.entrada.borda("KeyA") ||
+        this.entrada.borda("ArrowLeft") ||
+        this.entrada.borda("KeyD") ||
+        this.entrada.borda("ArrowRight") ||
+        this.entrada.confirmar
+      ) {
         item.set(!item.get());
         item.aplicar(item.get(), this);
         this.somUI.tocar("navegar");
@@ -1707,7 +2229,9 @@ class Jogo {
       if (this.shake < 0) this.shake = 0;
     }
   }
-  _tremor(intensidade) { this.shake = Math.max(this.shake, intensidade); }
+  _tremor(intensidade) {
+    this.shake = Math.max(this.shake, intensidade);
+  }
 
   _resolverColisaoCorpos() {
     const a = this.p1.hurtbox();
@@ -1727,8 +2251,13 @@ class Jogo {
 
     const sobreposicao = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x);
     const metade = sobreposicao / 2;
-    if (this.p1.x < this.p2.x) { this.p1.x -= metade; this.p2.x += metade; }
-    else                        { this.p1.x += metade; this.p2.x -= metade; }
+    if (this.p1.x < this.p2.x) {
+      this.p1.x -= metade;
+      this.p2.x += metade;
+    } else {
+      this.p1.x += metade;
+      this.p2.x -= metade;
+    }
   }
 
   _resolverGolpes() {
@@ -1744,18 +2273,30 @@ class Jogo {
     if (colideAABB(hit, alvo.hurtbox())) {
       const g = GOLPES[atacante.golpeAtual];
       const res = alvo.receberGolpe({
-        dano: g.dano, knockback: g.knockback, derruba: g.derruba,
-        origemX: atacante.x, ignoraBloqueio: !!g.ignoraBloqueio,
+        dano: g.dano,
+        knockback: g.knockback,
+        derruba: g.derruba,
+        origemX: atacante.x,
+        ignoraBloqueio: !!g.ignoraBloqueio,
       });
       atacante.golpeAcertou = true;
 
       // Abre a janela de cancelamento se o golpe for cancelável (combo).
-      if (g.cancelavel) atacante.janelaCancel = CONFIG.combo.janelaCancelMs / 1000;
+      if (g.cancelavel)
+        atacante.janelaCancel = CONFIG.combo.janelaCancelMs / 1000;
 
       // Feedback (juice) — centralizado para corpo-a-corpo e agarrão.
-      const px = (hit.x + hit.w / 2);
-      const py = (hit.y + hit.h / 2);
-      this._feedbackAcerto(atacante, alvo, res, res.dano ?? g.dano, px, py, false);
+      const px = hit.x + hit.w / 2;
+      const py = hit.y + hit.h / 2;
+      this._feedbackAcerto(
+        atacante,
+        alvo,
+        res,
+        res.dano ?? g.dano,
+        px,
+        py,
+        false,
+      );
     }
   }
 
@@ -1764,7 +2305,12 @@ class Jogo {
       p.atualizar(dt);
       const alvo = p.dono === this.p1 ? this.p2 : this.p1;
       if (p.vivo && alvo.estaVivo() && colideAABB(p.caixa(), alvo.hurtbox())) {
-        const res = alvo.receberGolpe({ dano: p.dano, knockback: 180, derruba: p.tipo === "super", origemX: p.x });
+        const res = alvo.receberGolpe({
+          dano: p.dano,
+          knockback: 180,
+          derruba: p.tipo === "super",
+          origemX: p.x,
+        });
         p.vivo = false;
         this._feedbackAcerto(p.dono, alvo, res, p.dano, p.x, p.y, true);
       }
@@ -1783,7 +2329,13 @@ class Jogo {
     if (!res || res.ignorado) return;
 
     if (res.bloqueado) {
-      this.particulas.faiscas(px, py, CONFIG.particulas.faiscasBloqueio, "#cfe8ff", 160);
+      this.particulas.faiscas(
+        px,
+        py,
+        CONFIG.particulas.faiscasBloqueio,
+        "#cfe8ff",
+        160,
+      );
       this.audio.bloqueio();
       this.hitStop = Math.max(this.hitStop, 0.03);
       this._tremor(CONFIG.gameFeel.shakeHit * 0.4);
@@ -1794,8 +2346,16 @@ class Jogo {
     atacante.ganharEspecial(CONFIG.especial.ganhoAoAcertar);
 
     // Faíscas proporcionais ao dano (mais no projétil).
-    const n = ehProjetil ? CONFIG.particulas.faiscasProjetil : CONFIG.particulas.faiscasAcerto;
-    this.particulas.faiscas(px, py, n, ehProjetil ? "#fff2a8" : "#ffcf6b", 240 + dano * 10);
+    const n = ehProjetil
+      ? CONFIG.particulas.faiscasProjetil
+      : CONFIG.particulas.faiscasAcerto;
+    this.particulas.faiscas(
+      px,
+      py,
+      n,
+      ehProjetil ? "#fff2a8" : "#ffcf6b",
+      240 + dano * 10,
+    );
 
     if (res.ko) {
       // KO: hit stop e tremor grandes.
@@ -1805,9 +2365,16 @@ class Jogo {
       this.audio.ko();
     } else {
       // Hit stop proporcional ao dano (com teto).
-      const hs = Math.min(CONFIG.gameFeel.hitStopMax, CONFIG.gameFeel.hitStopMs + dano * CONFIG.gameFeel.hitStopPorDano);
+      const hs = Math.min(
+        CONFIG.gameFeel.hitStopMax,
+        CONFIG.gameFeel.hitStopMs + dano * CONFIG.gameFeel.hitStopPorDano,
+      );
       this.hitStop = Math.max(this.hitStop, hs / 1000);
-      this._tremor(ehProjetil ? CONFIG.gameFeel.shakeProjetil : CONFIG.gameFeel.shakeHit + dano * 0.2);
+      this._tremor(
+        ehProjetil
+          ? CONFIG.gameFeel.shakeProjetil
+          : CONFIG.gameFeel.shakeHit + dano * 0.2,
+      );
       this.audio.acerto();
     }
   }
@@ -1825,8 +2392,15 @@ class Jogo {
     this.vencedorRound = vencedor;
     this.terminouPorKO = porKO;
 
-    if (vencedor === "p1") { this.roundsP1++; this.p1.irPara(ESTADOS.VICTORY, true); if (this.p2.estaVivo()) this.p2.irPara(ESTADOS.IDLE, true); }
-    else if (vencedor === "p2") { this.roundsP2++; this.p2.irPara(ESTADOS.VICTORY, true); if (this.p1.estaVivo()) this.p1.irPara(ESTADOS.IDLE, true); }
+    if (vencedor === "p1") {
+      this.roundsP1++;
+      this.p1.irPara(ESTADOS.VICTORY, true);
+      if (this.p2.estaVivo()) this.p2.irPara(ESTADOS.IDLE, true);
+    } else if (vencedor === "p2") {
+      this.roundsP2++;
+      this.p2.irPara(ESTADOS.VICTORY, true);
+      if (this.p1.estaVivo()) this.p1.irPara(ESTADOS.IDLE, true);
+    }
 
     if (this.roundsP1 >= ROUNDS_PARA_VENCER) this.vencedorPartida = "p1";
     else if (this.roundsP2 >= ROUNDS_PARA_VENCER) this.vencedorPartida = "p2";
@@ -1838,11 +2412,31 @@ class Jogo {
     ctx.clearRect(0, 0, LARGURA, ALTURA);
 
     // Telas de menu (sem shake).
-    if (this.tela === TELAS.START)       { this._desenharCenario(ctx); this._desenharStart(ctx);        return; }
-    if (this.tela === TELAS.MODO)        { this._desenharCenario(ctx); this._desenharModo(ctx);         return; }
-    if (this.tela === TELAS.DIFICULDADE) { this._desenharCenario(ctx); this._desenharDificuldade(ctx);  return; }
-    if (this.tela === TELAS.SELECT)      { this._desenharCenario(ctx); this._desenharSelect(ctx);       return; }
-    if (this.tela === TELAS.CONFIG)      { this._desenharCenario(ctx); this._desenharConfig(ctx);       return; }
+    if (this.tela === TELAS.START) {
+      this._desenharCenario(ctx);
+      this._desenharStart(ctx);
+      return;
+    }
+    if (this.tela === TELAS.MODO) {
+      this._desenharCenario(ctx);
+      this._desenharModo(ctx);
+      return;
+    }
+    if (this.tela === TELAS.DIFICULDADE) {
+      this._desenharCenario(ctx);
+      this._desenharDificuldade(ctx);
+      return;
+    }
+    if (this.tela === TELAS.SELECT) {
+      this._desenharCenario(ctx);
+      this._desenharSelect(ctx);
+      return;
+    }
+    if (this.tela === TELAS.CONFIG) {
+      this._desenharCenario(ctx);
+      this._desenharConfig(ctx);
+      return;
+    }
 
     // Tela de vitória: apenas cenário, sprites animando e o texto central.
     if (this.tela === TELAS.VITORIA) {
@@ -1947,20 +2541,34 @@ class Jogo {
   }
 
   _desenharHUD(ctx) {
-    const w = 360, h = 22, y = 24;
+    const w = 360,
+      h = 22,
+      y = 24;
     this._barraVida(ctx, 30, y, w, h, this.p1.hp, false);
     this._barraVida(ctx, LARGURA - 30 - w, y, w, h, this.p2.hp, true);
 
     // Barras de especial (logo abaixo da vida).
     this._barraEspecial(ctx, 30, y + h + 4, w, 8, this.p1.especial, false);
-    this._barraEspecial(ctx, LARGURA - 30 - w, y + h + 4, w, 8, this.p2.especial, true);
+    this._barraEspecial(
+      ctx,
+      LARGURA - 30 - w,
+      y + h + 4,
+      w,
+      8,
+      this.p2.especial,
+      true,
+    );
 
     ctx.fillStyle = "#fff";
     ctx.font = "bold 18px 'Segoe UI', sans-serif";
     ctx.textAlign = "left";
     ctx.fillText(this.p1.nome, 30, y + h + 34);
     ctx.textAlign = "right";
-    ctx.fillText(this.p2.nome + (this.modo === "1p" ? "  (CPU)" : ""), LARGURA - 30, y + h + 34);
+    ctx.fillText(
+      this.p2.nome + (this.modo === "1p" ? "  (CPU)" : ""),
+      LARGURA - 30,
+      y + h + 34,
+    );
 
     this._pipsRounds(ctx, 36, y + h + 50, this.roundsP1, false);
     this._pipsRounds(ctx, LARGURA - 36, y + h + 50, this.roundsP2, true);
@@ -1970,7 +2578,11 @@ class Jogo {
     ctx.fillStyle = "#ffd34d";
     ctx.font = "bold 30px 'Segoe UI', monospace";
     ctx.textAlign = "center";
-    ctx.fillText(String(Math.ceil(this.tempoRestante)).padStart(2, "0"), LARGURA / 2, y + h - 1);
+    ctx.fillText(
+      String(Math.ceil(this.tempoRestante)).padStart(2, "0"),
+      LARGURA / 2,
+      y + h - 1,
+    );
   }
 
   _textoCentral(ctx, titulo, sub, corTitulo, tamanho = 56) {
@@ -1993,7 +2605,7 @@ class Jogo {
       ctx,
       mostrarLutar ? "FIGHT!" : "ROUND " + this.roundAtual,
       null,
-      mostrarLutar ? "#36d23a" : "#ffd34d"
+      mostrarLutar ? "#36d23a" : "#ffd34d",
     );
   }
 
@@ -2005,13 +2617,19 @@ class Jogo {
     }
     let texto = "EMPATE";
     if (this.vencedorRound === "p1") texto = this.p1.nome + " VENCE O ROUND";
-    else if (this.vencedorRound === "p2") texto = this.p2.nome + " VENCE O ROUND";
+    else if (this.vencedorRound === "p2")
+      texto = this.p2.nome + " VENCE O ROUND";
     this._textoCentral(ctx, texto, null, "#ffd34d", 40);
   }
 
   _desenharVitoria(ctx) {
     const v = this.vencedorPartida === "p1" ? this.p1 : this.p2;
-    this._textoCentral(ctx, v.nome.toUpperCase() + " VENCEU!", "Pressione ENTER para jogar de novo", "#ffd34d");
+    this._textoCentral(
+      ctx,
+      v.nome.toUpperCase() + " VENCEU!",
+      "Pressione ENTER para jogar de novo",
+      "#ffd34d",
+    );
   }
 
   // ---- Tela inicial (título) -----------------------------------------------
@@ -2023,7 +2641,11 @@ class Jogo {
 
     ctx.fillStyle = "#cfc6e0";
     ctx.font = "22px 'Segoe UI', sans-serif";
-    ctx.fillText(this.recursos.nome("p1") + "  VS  " + this.recursos.nome("p2"), LARGURA / 2, 184);
+    ctx.fillText(
+      this.recursos.nome("p1") + "  VS  " + this.recursos.nome("p2"),
+      LARGURA / 2,
+      184,
+    );
 
     // Tabela rápida de comandos (atualizada com agarrão/especial).
     const linhas1 = [
@@ -2043,7 +2665,10 @@ class Jogo {
       let y = 250;
       for (let i = 0; i < linhas.length; i++) {
         ctx.fillStyle = i === 0 ? "#5cd6ff" : "#e8e2f0";
-        ctx.font = i === 0 ? "bold 20px 'Segoe UI', sans-serif" : "15px 'Segoe UI', monospace";
+        ctx.font =
+          i === 0
+            ? "bold 20px 'Segoe UI', sans-serif"
+            : "15px 'Segoe UI', monospace";
         ctx.fillText(linhas[i], cx, y);
         y += 28;
       }
@@ -2053,7 +2678,11 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "15px 'Segoe UI', sans-serif";
-    ctx.fillText("Combos: cancele soco→chute/especial • barra cheia libera o especial • F1 = debug", LARGURA / 2, 410);
+    ctx.fillText(
+      "Combos: cancele soco→chute/especial • barra cheia libera o especial • F1 = debug",
+      LARGURA / 2,
+      410,
+    );
 
     if (Math.floor(performance.now() / 500) % 2 === 0) {
       ctx.fillStyle = "#ffd34d";
@@ -2064,7 +2693,11 @@ class Jogo {
     if (this.recursos.faltando > 0) {
       ctx.fillStyle = "#e05050";
       ctx.font = "14px 'Segoe UI', sans-serif";
-      ctx.fillText(this.recursos.faltando + " imagem(ns) ausente(s): usando placeholders", LARGURA / 2, 510);
+      ctx.fillText(
+        this.recursos.faltando + " imagem(ns) ausente(s): usando placeholders",
+        LARGURA / 2,
+        510,
+      );
     }
   }
 
@@ -2075,10 +2708,10 @@ class Jogo {
     ctx.font = "bold 48px 'Segoe UI', sans-serif";
     ctx.fillText("CONFIGURAÇÕES", LARGURA / 2, 110);
 
-    const itemH = 80;          // altura por item
+    const itemH = 80; // altura por item
     const totalH = CONFIGS.length * itemH;
     const startY = ALTURA / 2 - totalH / 2 + 20;
-    const sliderW = 320;       // largura da barra de slider
+    const sliderW = 320; // largura da barra de slider
 
     for (let i = 0; i < CONFIGS.length; i++) {
       const item = CONFIGS[i];
@@ -2093,7 +2726,9 @@ class Jogo {
 
       // Label.
       ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
-      ctx.font = sel ? "bold 22px 'Segoe UI', sans-serif" : "20px 'Segoe UI', sans-serif";
+      ctx.font = sel
+        ? "bold 22px 'Segoe UI', sans-serif"
+        : "20px 'Segoe UI', sans-serif";
       ctx.textAlign = "right";
       ctx.fillText(item.label, LARGURA / 2 - sliderW / 2 - 24, cy + 6);
 
@@ -2123,24 +2758,41 @@ class Jogo {
         // Setas e percentual.
         ctx.textAlign = "left";
         ctx.fillStyle = sel ? "#ffd34d" : "#9b90b5";
-        ctx.font = sel ? "bold 20px 'Segoe UI', sans-serif" : "18px 'Segoe UI', sans-serif";
+        ctx.font = sel
+          ? "bold 20px 'Segoe UI', sans-serif"
+          : "18px 'Segoe UI', sans-serif";
         const pct = Math.round(val * 100) + "%";
         ctx.fillText(sel ? `◀  ${pct}  ▶` : pct, sx + sliderW + 18, cy + 7);
-
       } else if (item.tipo === "toggle") {
         const ligado = item.get();
         ctx.textAlign = "left";
         const tx = LARGURA / 2 - sliderW / 2;
         ctx.fillStyle = ligado ? "#36d23a" : "#e03020";
-        ctx.font = sel ? "bold 22px 'Segoe UI', sans-serif" : "20px 'Segoe UI', sans-serif";
-        ctx.fillText(ligado ? (sel ? "◀  LIGADO  ▶" : "LIGADO") : (sel ? "◀  DESLIGADO  ▶" : "DESLIGADO"), tx, cy + 7);
+        ctx.font = sel
+          ? "bold 22px 'Segoe UI', sans-serif"
+          : "20px 'Segoe UI', sans-serif";
+        ctx.fillText(
+          ligado
+            ? sel
+              ? "◀  LIGADO  ▶"
+              : "LIGADO"
+            : sel
+              ? "◀  DESLIGADO  ▶"
+              : "DESLIGADO",
+          tx,
+          cy + 7,
+        );
       }
     }
 
     ctx.textAlign = "center";
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para navegar  •  ←/→ para ajustar  •  ESC volta", LARGURA / 2, 468);
+    ctx.fillText(
+      "W/S ou ↑/↓ para navegar  •  ←/→ para ajustar  •  ESC volta",
+      LARGURA / 2,
+      468,
+    );
   }
 
   // ---- Tela de seleção de modo ---------------------------------------------
@@ -2151,15 +2803,17 @@ class Jogo {
     ctx.fillText("MODO DE JOGO", LARGURA / 2, 105);
 
     const opcoes = [
-      { label: "1 JOGADOR",       sub: "Enfrenta a inteligência artificial" },
-      { label: "2 JOGADORES",     sub: "Partida local entre dois jogadores" },
-      { label: "⚙  CONFIGURAÇÕES", sub: "Ajuste volume e outras opções"      },
+      { label: "1 JOGADOR", sub: "Enfrenta a inteligência artificial" },
+      { label: "2 JOGADORES", sub: "Partida local entre dois jogadores" },
+      { label: "⚙  CONFIGURAÇÕES", sub: "Ajuste volume e outras opções" },
     ];
     let y = 205;
     for (let i = 0; i < opcoes.length; i++) {
       const sel = i === this.menuIndex;
       ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
-      ctx.font = sel ? "bold 30px 'Segoe UI', sans-serif" : "24px 'Segoe UI', sans-serif";
+      ctx.font = sel
+        ? "bold 30px 'Segoe UI', sans-serif"
+        : "24px 'Segoe UI', sans-serif";
       ctx.fillText((sel ? "▶  " : "   ") + opcoes[i].label, LARGURA / 2, y);
       ctx.fillStyle = sel ? "rgba(255,211,77,0.6)" : "rgba(207,198,224,0.45)";
       ctx.font = "15px 'Segoe UI', sans-serif";
@@ -2169,7 +2823,11 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 468);
+    ctx.fillText(
+      "W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta",
+      LARGURA / 2,
+      468,
+    );
   }
 
   // ---- Tela de seleção de dificuldade (1 Jogador) --------------------------
@@ -2185,9 +2843,21 @@ class Jogo {
     ctx.fillText("DIFICULDADE", LARGURA / 2, 118);
 
     const opcoes = [
-      { label: "FÁCIL",   cor: "#36d23a", sub: "IA reage mais devagar, ideal para começar" },
-      { label: "MÉDIO",   cor: "#ffd34d", sub: "Equilíbrio entre desafio e diversão" },
-      { label: "DIFÍCIL", cor: "#e03020", sub: "IA agressiva e precisa — sem piedade" },
+      {
+        label: "FÁCIL",
+        cor: "#36d23a",
+        sub: "IA reage mais devagar, ideal para começar",
+      },
+      {
+        label: "MÉDIO",
+        cor: "#ffd34d",
+        sub: "Equilíbrio entre desafio e diversão",
+      },
+      {
+        label: "DIFÍCIL",
+        cor: "#e03020",
+        sub: "IA agressiva e precisa — sem piedade",
+      },
     ];
     let y = 200;
     for (let i = 0; i < opcoes.length; i++) {
@@ -2200,7 +2870,9 @@ class Jogo {
       }
 
       ctx.fillStyle = sel ? op.cor : "rgba(207,198,224,0.55)";
-      ctx.font = sel ? "bold 32px 'Segoe UI', sans-serif" : "26px 'Segoe UI', sans-serif";
+      ctx.font = sel
+        ? "bold 32px 'Segoe UI', sans-serif"
+        : "26px 'Segoe UI', sans-serif";
       ctx.fillText((sel ? "▶  " : "   ") + op.label, LARGURA / 2, y);
 
       ctx.fillStyle = sel ? "rgba(255,255,255,0.65)" : "rgba(207,198,224,0.35)";
@@ -2212,7 +2884,11 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText("W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta", LARGURA / 2, 468);
+    ctx.fillText(
+      "W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta",
+      LARGURA / 2,
+      468,
+    );
   }
 
   // ---- Tela de seleção de personagem ---------------------------------------
@@ -2225,7 +2901,10 @@ class Jogo {
     // Dois painéis (P1 à esquerda, P2/CPU à direita).
     const painel = (titulo, idx, confirmado, cx, ehCPU) => {
       const pers = PERSONAGENS[idx];
-      const cw = 220, ch = 220, bx = cx - cw / 2, by = 150;
+      const cw = 220,
+        ch = 220,
+        bx = cx - cw / 2,
+        by = 150;
       ctx.fillStyle = "rgba(0,0,0,0.35)";
       ctx.fillRect(bx, by, cw, ch);
       ctx.strokeStyle = confirmado ? "#36d23a" : "#5cd6ff";
@@ -2242,7 +2921,8 @@ class Jogo {
       ctx.clip();
       if (foto) {
         const escala = Math.max(cw / foto.width, ch / foto.height);
-        const dw = foto.width * escala, dh = foto.height * escala;
+        const dw = foto.width * escala,
+          dh = foto.height * escala;
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(foto, cx - dw / 2, by + (ch - dh) / 2, dw, dh);
       } else {
@@ -2262,17 +2942,34 @@ class Jogo {
       ctx.fillText(this.recursos.nome(pers), cx, by + ch + 38);
       ctx.fillStyle = confirmado ? "#36d23a" : "#9b90b5";
       ctx.font = "16px 'Segoe UI', sans-serif";
-      ctx.fillText(confirmado ? "PRONTO!" : (ehCPU ? "CPU escolhe" : "◀  trocar  ▶"), cx, by + ch + 64);
+      ctx.fillText(
+        confirmado ? "PRONTO!" : ehCPU ? "CPU escolhe" : "◀  trocar  ▶",
+        cx,
+        by + ch + 64,
+      );
     };
 
-    painel("JOGADOR 1", this.escolha.p1, this.confirmado.p1, LARGURA * 0.30, false);
-    painel(this.modo === "1p" ? "CPU" : "JOGADOR 2", this.escolha.p2, this.confirmado.p2, LARGURA * 0.70, this.modo === "1p");
+    painel(
+      "JOGADOR 1",
+      this.escolha.p1,
+      this.confirmado.p1,
+      LARGURA * 0.3,
+      false,
+    );
+    painel(
+      this.modo === "1p" ? "CPU" : "JOGADOR 2",
+      this.escolha.p2,
+      this.confirmado.p2,
+      LARGURA * 0.7,
+      this.modo === "1p",
+    );
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "16px 'Segoe UI', sans-serif";
-    const dica = this.modo === "2p"
-      ? "P1: A/D e F p/ confirmar  •  P2: ←/→ e J p/ confirmar  •  ESC volta"
-      : "A/D para trocar  •  ENTER/F confirma  •  ESC volta";
+    const dica =
+      this.modo === "2p"
+        ? "P1: A/D e F p/ confirmar  •  P2: ←/→ e J p/ confirmar  •  ESC volta"
+        : "A/D para trocar  •  ENTER/F confirma  •  ESC volta";
     ctx.fillText(dica, LARGURA / 2, 500);
   }
 }
@@ -2302,7 +2999,9 @@ async function iniciar() {
   const recursos = new Recursos(manifest);
   await recursos.precarregar();
   if (recursos.faltando > 0) {
-    console.warn(`Assets ausentes: ${recursos.faltando} (serão exibidos como placeholders).`);
+    console.warn(
+      `Assets ausentes: ${recursos.faltando} (serão exibidos como placeholders).`,
+    );
   }
 
   const jogo = new Jogo(canvas, recursos);
