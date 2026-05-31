@@ -121,7 +121,8 @@ const CONFIG = {
 
   // --- Áudio (Web Audio API, sintetizado) -----------------------------------
   audio: {
-    volumeMaster: 0.35,  // 0..1 — volume geral
+    volumeMaster: 0.35,  // 0..1 — volume dos efeitos sonoros
+    volumeMusica: 0.50,  // 0..1 — volume das músicas de fundo
   },
 
   /* --- IA (3 dificuldades) -------------------------------------------------
@@ -638,6 +639,70 @@ class AudioFX {
 }
 
 /* ===========================================================================
+   6b) MÚSICA — HTMLAudioElement em loop por tela.
+   Arquivos esperados em assets/: musica_menu.mp3, musica_luta.mp3, musica_vitoria.mp3
+   Troque os arquivos a qualquer momento sem tocar no código.
+   =========================================================================== */
+
+class MusicaFX {
+  constructor() {
+    // Trilhas indexadas por nome lógico.
+    this.trilhas = {};
+    this.nomeAtual = null;
+    this.ligado = true;
+  }
+
+  // Pré-carrega as três trilhas (chamado antes de iniciar o jogo).
+  precarregar() {
+    const arquivos = {
+      menu:    "assets/musica_menu.mp3",
+      luta:    "assets/musica_luta.mp3",
+      vitoria: "assets/musica_vitoria.mp3",
+    };
+    for (const [nome, src] of Object.entries(arquivos)) {
+      const audio = new Audio(src);
+      audio.loop = true;
+      audio.volume = CONFIG.audio.volumeMusica;
+      audio.preload = "auto";
+      this.trilhas[nome] = audio;
+    }
+  }
+
+  // Toca a trilha indicada; se já estiver tocando, não reinicia.
+  // Só começa a tocar após o primeiro gesto do usuário (política de autoplay).
+  tocar(nome) {
+    if (!this.ligado) return;
+    if (this.nomeAtual === nome) return;
+
+    // Para a trilha anterior imediatamente.
+    const anterior = this.trilhas[this.nomeAtual];
+    if (anterior) { anterior.pause(); anterior.currentTime = 0; }
+
+    this.nomeAtual = nome;
+    const prox = this.trilhas[nome];
+    if (prox) {
+      prox.volume = CONFIG.audio.volumeMusica;
+      prox.play().catch(() => {
+        // O navegador bloqueou a reprodução automática (antes do 1º gesto).
+        // Ficará silencioso até o próximo tocar() após interação do usuário.
+      });
+    }
+  }
+
+  // Pausa temporária (ex.: durante hit stop — opcional).
+  pausar() {
+    const t = this.trilhas[this.nomeAtual];
+    if (t) t.pause();
+  }
+
+  retomar() {
+    if (!this.ligado) return;
+    const t = this.trilhas[this.nomeAtual];
+    if (t) t.play().catch(() => {});
+  }
+}
+
+/* ===========================================================================
    7) PROJÉTIL — viaja na horizontal, deixa rastro, some na borda/ao acertar.
    =========================================================================== */
 
@@ -1133,6 +1198,8 @@ class Jogo {
     this.entrada = new Entrada();
     this.particulas = new Particulas();
     this.audio = new AudioFX();
+    this.musica = new MusicaFX();
+    this.musica.precarregar();
     this.debug = false;
 
     this.tela = TELAS.START;
@@ -1213,6 +1280,7 @@ class Jogo {
     this.vencedorPartida = null;
     this._iniciarRound();
     this.tela = TELAS.LUTA;
+    this.musica.tocar("luta");
   }
 
   // ---- Loop principal -------------------------------------------------------
@@ -1237,7 +1305,7 @@ class Jogo {
   _atualizar(dt) {
     // --- Telas de menu ---
     if (this.tela === TELAS.START) {
-      if (this.entrada.confirmar) { this.audio.garantir(); this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) { this.audio.garantir(); this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
       this.entrada.limparPendentes();
       return;
     }
@@ -1248,7 +1316,7 @@ class Jogo {
       this.p1.atualizar(dt, false);
       this.p2.atualizar(dt, false);
       this.particulas.atualizar(dt);
-      if (this.entrada.confirmar) { this.tela = TELAS.MODO; this.menuIndex = 0; }
+      if (this.entrada.confirmar) { this.musica.tocar("menu"); this.tela = TELAS.MODO; this.menuIndex = 0; }
       this.entrada.limparPendentes();
       return;
     }
@@ -1300,7 +1368,7 @@ class Jogo {
       this._atualizarProjeteis(dt);
       this.particulas.atualizar(dt);
       if (this.timerFase > 2.6) {
-        if (this.vencedorPartida) this.tela = TELAS.VITORIA;
+        if (this.vencedorPartida) { this.tela = TELAS.VITORIA; this.musica.tocar("vitoria"); }
         else { this.roundAtual++; this._iniciarRound(); }
       }
       this.entrada.limparPendentes();
