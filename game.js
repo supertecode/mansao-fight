@@ -2097,7 +2097,7 @@ class SelecaoMapa {
 
 /* ===========================================================================
    VS SCREEN — linha do tempo (segundos). >>> AJUSTE FINO DE TIMING AQUI <<<
-   Total = 0.5 + 1.5 + 1.2 + 0.05 ≈ 3.25s (dentro da faixa pedida de 3–5s).
+   Total = 0.5 + 4.25 + 1.2 + 0.05 = 6.0s.
      entrada   : lutadores deslizam das bordas até o centro.
      confronto : idle se encarando + fundo scrollando + "VS" pulsando.
      round     : "ROUND N" entra com zoom-in.
@@ -2106,7 +2106,7 @@ class SelecaoMapa {
    =========================================================================== */
 const VS_TIMING = {
   entrada: 0.5,
-  confronto: 1.5,
+  confronto: 4.25,
   round: 1.2,
   flash: 0.05,
   scrollPxFrame: 0.6,
@@ -3543,17 +3543,25 @@ class Jogo {
     ctx.restore();
   }
 
-  // Desenha uma miniatura (canvas 16:9) dentro de um retângulo, com letterbox
-  // preto e pixels nítidos (sem suavização) — combina com a estética retrô.
-  _desenharThumb(ctx, thumb, x, y, w, h) {
+  // Desenha a imagem do mapa PREENCHENDO a célula (modo "cover"): escala para
+  // cobrir todo o retângulo e recorta o excedente (sem barras pretas). Como os
+  // mapas são bem largos (1920×540), isso mostra o miolo do estágio cheio na
+  // célula. O clip garante que o excedente não vaze para fora da borda.
+  _desenharThumb(ctx, img, x, y, w, h) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, w, h);
+    ctx.clip();
     ctx.fillStyle = "#000";
     ctx.fillRect(x, y, w, h);
-    if (!thumb) return;
-    const escala = Math.min(w / thumb.width, h / thumb.height);
-    const dw = thumb.width * escala;
-    const dh = thumb.height * escala;
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(thumb, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    if (img && img.width) {
+      const escala = Math.max(w / img.width, h / img.height); // COVER
+      const dw = img.width * escala;
+      const dh = img.height * escala;
+      ctx.imageSmoothingEnabled = true; // downscale suave fica melhor
+      ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    }
+    ctx.restore();
   }
 
   // Cantos marcados estilo pixel-art (4 "Ls" nas quinas de um retângulo).
@@ -3613,9 +3621,9 @@ class Jogo {
       const m = mapas[idx];
       const ehSel = idx === sel.indice;
 
-      // Miniatura (proporção preservada com letterbox).
+      // Miniatura preenchendo a célula (cover, recortando o excedente).
       const thumbH = cellH - tiraNome;
-      this._desenharThumb(ctx, m.thumb, x, y, cellW, thumbH);
+      this._desenharThumb(ctx, m.full, x, y, cellW, thumbH);
 
       // Faixa do nome (fonte arcade/maiúsculas).
       ctx.fillStyle = ehSel ? "#ffd34d" : "#1a1430";
