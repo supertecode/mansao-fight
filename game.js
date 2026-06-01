@@ -423,9 +423,12 @@ class Recursos {
       );
     }
 
-    // Fundo da arena. Carregamento opcional: se faltar, usa-se o procedural.
+    // Fundo da arena. O ARQUIVO vem do manifest ("mapa"); assim dá para trocar
+    // de mapa só editando o JSON, sem mexer no código. Se o campo faltar, usa
+    // "arena.png". Carregamento opcional: se o arquivo faltar, cai no procedural.
+    const arquivoMapa = this.manifest.mapa || "arena.png";
     tarefas.push(
-      carregarImagem("assets/mapas/arena.png").then((res) => {
+      carregarImagem(`assets/mapas/${arquivoMapa}`).then((res) => {
         this.mapa = res.ok ? res.img : null;
       }),
     );

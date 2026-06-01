@@ -1,5 +1,6 @@
 {
   "frameSize": [256, 256],
+  "mapa": "arena3.png",
   "players": {
     "p1": {
       "nome": "Samuel Silva",
