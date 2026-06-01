@@ -322,7 +322,7 @@ const TECLAS = {
 };
 
 // Lista de personagens (chaves de sprite no manifest) para a seleção.
-const PERSONAGENS = ["p1", "p2"];
+const PERSONAGENS = ["p1", "p2", "p3"];
 
 // Estados possíveis da máquina de estados (um por vez).
 const ESTADOS = {
@@ -414,7 +414,11 @@ class Recursos {
     const tarefas = [];
 
     // Retratos para a seleção de personagem (não fazem parte do manifest).
-    const fotos = { p1: "assets/silva.png", p2: "assets/vitor.png" };
+    const fotos = {
+      p1: "assets/silva.png",
+      p2: "assets/vitor.png",
+      p3: "assets/erick.png",
+    };
     for (const pers of Object.keys(fotos)) {
       tarefas.push(
         carregarImagem(fotos[pers]).then((res) => {
@@ -1536,6 +1540,12 @@ class Fighter {
       anim = "kick_jump";
     else if (agachado && this.recursos.tem(this.personagem, "kick_mid"))
       anim = "kick_mid";
+    // Personagem sem o sprite "kick" em pé (ex.: p3/Erick): usa o avanço "lunge"
+    // como chute padrão; sem isso o estado KICK travaria (meta nulo nunca termina).
+    if (!this.recursos.tem(this.personagem, anim)) {
+      if (this.recursos.tem(this.personagem, "lunge")) anim = "lunge";
+      else if (this.recursos.tem(this.personagem, "kick_mid")) anim = "kick_mid";
+    }
     this.irPara(ESTADOS.KICK, true, anim);
   }
 
