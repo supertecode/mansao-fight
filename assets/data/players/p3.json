@@ -1,0 +1,184 @@
+{
+  "nome": "Erick Barbosa",
+  "retrato": "erick.png",
+  "ficha": {
+    "cidade": "IGUAPE — SP",
+    "estilo": "OTAKU GAMER",
+    "lore": [
+      "Reflexos de quem nunca solta o controle,",
+      "dança entre os golpes e contra-ataca."
+    ],
+    "atributos": {
+      "forca": 3,
+      "velocidade": 5,
+      "defesa": 2,
+      "especial": 4
+    },
+    "dificuldade": 4,
+    "estagio": "arena3.png"
+  },
+  "animacoes": {
+    "idle": {
+      "frames": 2,
+      "fps": 6,
+      "loop": true
+    },
+    "walk": {
+      "frames": 3,
+      "fps": 8,
+      "loop": true
+    },
+    "run": {
+      "frames": 3,
+      "fps": 10,
+      "loop": true
+    },
+    "punch": {
+      "frames": 3,
+      "fps": 12,
+      "loop": false,
+      "framesAtivos": [2]
+    },
+    "punch_step": {
+      "frames": 3,
+      "fps": 12,
+      "loop": false,
+      "framesAtivos": [2]
+    },
+    "kick_mid": {
+      "frames": 2,
+      "fps": 5,
+      "loop": false,
+      "framesAtivos": [1]
+    },
+    "kick_jump": {
+      "frames": 3,
+      "fps": 10,
+      "loop": false,
+      "framesAtivos": [1]
+    },
+    "fireball": {
+      "frames": 3,
+      "fps": 10,
+      "loop": false,
+      "framesAtivos": [2]
+    },
+    "lunge": {
+      "frames": 1,
+      "fps": 10,
+      "loop": false,
+      "framesAtivos": [0]
+    },
+    "item": {
+      "frames": 2,
+      "fps": 8,
+      "loop": false
+    },
+    "block": {
+      "frames": 1,
+      "fps": 8,
+      "loop": false
+    },
+    "hit": {
+      "frames": 2,
+      "fps": 10,
+      "loop": false
+    },
+    "knockdown": {
+      "frames": 1,
+      "fps": 8,
+      "loop": false
+    },
+    "getup": {
+      "frames": 2,
+      "fps": 8,
+      "loop": false
+    },
+    "taunt": {
+      "frames": 2,
+      "fps": 6,
+      "loop": false
+    },
+    "special": {
+      "frames": 1,
+      "fps": 10,
+      "loop": false,
+      "framesAtivos": [0]
+    }
+  },
+  "golpes": {
+    "punch": {
+      "startup": 4,
+      "ativo": 3,
+      "recovery": 8,
+      "dano": 6,
+      "knockback": 130,
+      "derruba": false,
+      "alcance": [18, 112],
+      "altura": [-178, -120],
+      "cancelavel": true,
+      "tipo_altura": "alto"
+    },
+    "punch_step": {
+      "startup": 5,
+      "ativo": 3,
+      "recovery": 10,
+      "dano": 7,
+      "knockback": 150,
+      "derruba": false,
+      "alcance": [18, 124],
+      "altura": [-178, -120],
+      "cancelavel": true,
+      "tipo_altura": "alto"
+    },
+    "lunge": {
+      "startup": 5,
+      "ativo": 4,
+      "recovery": 12,
+      "dano": 10,
+      "knockback": 220,
+      "derruba": true,
+      "alcance": [20, 150],
+      "altura": [-150, -90],
+      "cancelavel": false,
+      "tipo_altura": "medio"
+    },
+    "kick_mid": {
+      "startup": 6,
+      "ativo": 3,
+      "recovery": 12,
+      "dano": 9,
+      "knockback": 200,
+      "derruba": true,
+      "alcance": [20, 132],
+      "altura": [-64, 0],
+      "cancelavel": false,
+      "tipo_altura": "baixo"
+    },
+    "kick_jump": {
+      "startup": 4,
+      "ativo": 6,
+      "recovery": 8,
+      "dano": 12,
+      "knockback": 250,
+      "derruba": true,
+      "alcance": [10, 122],
+      "altura": [-185, -90],
+      "cancelavel": false,
+      "tipo_altura": "alto"
+    },
+    "agarra": {
+      "startup": 3,
+      "ativo": 3,
+      "recovery": 18,
+      "dano": 14,
+      "knockback": 300,
+      "derruba": true,
+      "alcance": [8, 78],
+      "altura": [-180, -60],
+      "cancelavel": false,
+      "ignoraBloqueio": true,
+      "tipo_altura": "medio"
+    }
+  }
+}

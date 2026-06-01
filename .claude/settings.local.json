@@ -4,7 +4,12 @@
       "Bash(node --check game.js)",
       "Bash(node -e \"const m=require\\('c:/Users/super/Projetos/mansao-fight/assets/manifest.json'\\); const g=k=>Object.keys\\(m.players[k].golpes\\); console.log\\('JSON valido ✔'\\); console.log\\('p1 \\('+m.players.p1.nome+'\\) golpes:', g\\('p1'\\).join\\(', '\\)\\); console.log\\('p2 \\('+m.players.p2.nome+'\\) golpes:', g\\('p2'\\).join\\(', '\\)\\);\")",
       "Bash(node -e \"const m=require\\('./assets/manifest.json'\\); for\\(const p of ['p1','p2']\\){for\\(const[k,g] of Object.entries\\(m.players[p].golpes\\)\\) if\\(!g.tipo_altura\\) throw new Error\\(p+'.'+k+' sem tipo_altura'\\); } console.log\\('manifest OK — tipo_altura presente em todos os golpes'\\);\")",
-      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('assets/manifest.json','utf8'\\)\\); console.log\\('manifest.json OK'\\)\")"
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('assets/manifest.json','utf8'\\)\\); console.log\\('manifest.json OK'\\)\")",
+      "PowerShell(\\(Get-Content \"c:\\\\Users\\\\super\\\\Projetos\\\\mansao-fight\\\\game.js\" | Measure-Object -Line\\).Lines)",
+      "Bash(git checkout *)",
+      "Bash(python _split.py)",
+      "Bash(git mv *)",
+      "Bash(git rm *)"
     ]
   }
 }
