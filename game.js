@@ -377,6 +377,48 @@ const TECLAS = {
 // Lista de personagens (chaves de sprite no manifest) para a seleção.
 const PERSONAGENS = ["p1", "p2", "p3"];
 
+/* ===========================================================================
+   FICHA DE APRESENTAÇÃO DOS LUTADORES — (1) MÓDULO DE DADOS da seleção.
+   Metadados puramente cosméticos da tela SELECT (não afetam o balanceamento):
+   cidade, estilo, frase de lore, barras de atributo (0–5), dificuldade (1–5) e
+   o "estágio de origem" (arquivo do mapa exibido ao fundo do preview).
+
+   >>> EDITE A FICHA NO manifest.json <<< (players.<p>.ficha). O objeto abaixo é
+   só o DEFAULT: cada campo ausente no manifest cai aqui, então a tela nunca
+   quebra por dado faltando (mesmo padrão de montarGolpes()). Recursos.ficha()
+   mescla o manifest sobre estes valores. */
+const FICHA_PADRAO = {
+  cidade: "ORIGEM DESCONHECIDA",
+  estilo: "ESTILO LIVRE",
+  lore: ["Um lutador de história ainda não contada."],
+  atributos: { forca: 3, velocidade: 3, defesa: 3, especial: 3 },
+  dificuldade: 3,
+  estagio: null,
+};
+
+// Cores de tema da seleção (P1 azul elétrico, P2 vermelho sangue + dourado neon).
+const SELECT_TEMA = {
+  p1: { cor: "#5cd6ff", forte: "#1b6fff", brilho: "#9fe8ff" },
+  p2: { cor: "#ff6a6a", forte: "#c81e2b", brilho: "#ffb0b0" },
+  ouro: "#ffd34d",
+  fundo: "#0a0815",
+};
+
+/* Células da GRADE de seleção (estilo arcade MK/SF). A grade é fixa em 3×2:
+   3 lutadores jogáveis + 1 slot ALEATÓRIO ("?") + 2 slots BLOQUEADOS (cadeado,
+   "EM BREVE"). tipo ∈ {"pers","random","lock"}. */
+const SELECT_CELULAS = [
+  { tipo: "pers", pers: "p1" },
+  { tipo: "pers", pers: "p2" },
+  { tipo: "pers", pers: "p3" },
+  { tipo: "random" },
+  { tipo: "lock" },
+  { tipo: "lock" },
+];
+const SELECT_COLS = 3;
+const SELECT_LINHAS = Math.ceil(SELECT_CELULAS.length / SELECT_COLS);
+const TEMPO_SELECT = 30; // segundos até o auto-confirm ("insira ficha")
+
 // Estados possíveis da máquina de estados (um por vez).
 const ESTADOS = {
   IDLE: "idle",
@@ -522,6 +564,18 @@ class Recursos {
   nome(player) {
     const p = this.manifest.players[player];
     return p && p.nome ? p.nome : player.toUpperCase();
+  }
+  // Ficha de apresentação (tela SELECT) mesclada sobre FICHA_PADRAO: o manifest
+  // vence e o default preenche o que faltar (atributos campo a campo também).
+  ficha(player) {
+    const p = this.manifest.players[player];
+    const f = (p && p.ficha) || {};
+    return {
+      ...FICHA_PADRAO,
+      ...f,
+      atributos: { ...FICHA_PADRAO.atributos, ...(f.atributos || {}) },
+      lore: f.lore && f.lore.length ? f.lore : FICHA_PADRAO.lore,
+    };
   }
   // Frame data dos golpes deste personagem (bloco "golpes" do manifest).
   // Pode vir vazio/parcial; montarGolpes() completa com os defaults do CONFIG.
@@ -2432,11 +2486,17 @@ class Jogo {
     this.selecaoMapa = null; // instância de SelecaoMapa enquanto em TELAS.MAPA
     this.mapaEscolhido = null; // descritor do mapa confirmado
     this.vs = null; // estado da VS Screen enquanto em TELAS.VS
+    this.select = null; // estado da tela SELECT (cursores, timers, efeitos)
+    this.crt = true; // filtro CRT (scanlines + vinheta) — alternável com F2
 
     window.addEventListener("keydown", (e) => {
       if (e.code === "F1") {
         e.preventDefault();
         this.debug = !this.debug;
+      }
+      if (e.code === "F2") {
+        e.preventDefault();
+        this.crt = !this.crt;
       }
     });
   }
@@ -2608,7 +2668,7 @@ class Jogo {
       return;
     }
     if (this.tela === TELAS.SELECT) {
-      this._atualizarSelect();
+      this._atualizarSelect(dt);
       this.entrada.limparPendentes();
       return;
     }
@@ -2752,9 +2812,7 @@ class Jogo {
       } else if (this.menuIndex === 1) {
         // 2 Jogadores → direto para seleção de personagem.
         this.modo = "2p";
-        this.escolha = { p1: 0, p2: 1 };
-        this.confirmado = { p1: false, p2: false };
-        this.tela = TELAS.SELECT;
+        this._iniciarSelect();
       } else {
         // Configurações.
         this.telaAnteriorConfig = TELAS.MODO;
@@ -2784,72 +2842,225 @@ class Jogo {
       const dificuldades = ["facil", "medio", "dificil"];
       this.modo = "1p";
       this.dificuldade = dificuldades[this.dificuldadeIndex];
-      this.escolha = { p1: 0, p2: 1 };
-      this.confirmado = { p1: false, p2: false };
       this.somUI.tocar("confirmar");
-      this.tela = TELAS.SELECT;
+      this._iniciarSelect();
     }
   }
 
-  // --- Tela SELECT: cada jogador escolhe um dos dois personagens ---
-  _atualizarSelect() {
-    if (this.entrada.voltar) {
-      this.somUI.tocar("voltar");
-      this.tela = TELAS.MODO;
+  /* =========================================================================
+     TELA SELECT — grade arcade com cursores INDEPENDENTES de P1 e P2.
+     Estado em this.select: cursores (índice na grade SELECT_CELULAS), timers de
+     animação (intro/transição/flash), partículas de confirmação e contagem
+     regressiva de "ficha". this.escolha continua sendo o índice em PERSONAGENS
+     (definido só na confirmação) para a VS Screen / criação dos lutadores.
+     ========================================================================= */
+  _iniciarSelect() {
+    this.escolha = { p1: 0, p2: 1 };
+    this.confirmado = { p1: false, p2: false };
+    this.select = {
+      cursor: { p1: 0, p2: 1 }, // célula sob cada cursor (índice em SELECT_CELULAS)
+      prevCursor: { p1: 0, p2: 1 }, // célula anterior (para a transição do preview)
+      trans: { p1: 1, p2: 1 }, // 0→1: progresso do flash de troca de preview
+      flash: { p1: 0, p2: 0 }, // s restantes do glitch de confirmação
+      intro: 0.7, // s restantes da animação de entrada (cortinas + flash)
+      timer: TEMPO_SELECT, // contagem regressiva ("insira uma ficha")
+      saindo: 0, // s restantes do selo "PRONTOS!" antes de ir ao mapa
+      particulas: [], // faíscas leves disparadas na confirmação
+    };
+    this.tela = TELAS.SELECT;
+  }
+
+  // Índice em PERSONAGENS sob o cursor do slot; -1 se a célula não é jogável.
+  _persDoCursor(slot) {
+    const cel = SELECT_CELULAS[this.select.cursor[slot]];
+    return cel && cel.tipo === "pers" ? PERSONAGENS.indexOf(cel.pers) : -1;
+  }
+
+  // Move o cursor de um slot na grade (wrap em linha/coluna). Retorna se mudou.
+  _moverCursorSelect(slot, kl, kr, ku, kd, gp) {
+    const cols = SELECT_COLS,
+      linhas = SELECT_LINHAS,
+      n = SELECT_CELULAS.length;
+    const i = this.select.cursor[slot];
+    const col = i % cols,
+      lin = Math.floor(i / cols);
+    let novo = i;
+    if (this.entrada.borda(kl) || (gp && gp.left))
+      novo = lin * cols + ((col + cols - 1) % cols);
+    else if (this.entrada.borda(kr) || (gp && gp.right))
+      novo = lin * cols + ((col + 1) % cols);
+    else if (this.entrada.borda(ku) || (gp && gp.up))
+      novo = ((lin + linhas - 1) % linhas) * cols + col;
+    else if (this.entrada.borda(kd) || (gp && gp.down))
+      novo = ((lin + 1) % linhas) * cols + col;
+    if (novo >= n) novo = n - 1; // grade cheia (3×2); guarda por segurança
+    if (novo === i) return false;
+    this.select.prevCursor[slot] = i;
+    this.select.cursor[slot] = novo;
+    this.select.trans[slot] = 0; // dispara o flash de transição do preview
+    return true;
+  }
+
+  // Confirma a escolha de um slot. forcado=true (timeout) aceita células
+  // bloqueadas caindo no 1º lutador; senão, lock recusa a confirmação.
+  _confirmarSelect(slot, forcado = false) {
+    const S = this.select;
+    const cel = SELECT_CELULAS[S.cursor[slot]];
+    let idx;
+    if (cel.tipo === "pers") {
+      idx = PERSONAGENS.indexOf(cel.pers);
+    } else if (cel.tipo === "random") {
+      idx = Math.floor(Math.random() * PERSONAGENS.length);
+      // Move o cursor para o lutador sorteado (feedback visual do "?").
+      S.cursor[slot] = SELECT_CELULAS.findIndex(
+        (c) => c.tipo === "pers" && PERSONAGENS.indexOf(c.pers) === idx,
+      );
+      S.trans[slot] = 0;
+    } else {
+      if (!forcado) {
+        this.somUI.tocar("voltar"); // slot bloqueado: rejeita
+        return;
+      }
+      idx = 0;
+    }
+    this.escolha[slot] = idx;
+    this.confirmado[slot] = true;
+    S.flash[slot] = 0.45; // glitch/flash de confirmação
+    this.somUI.tocar("selecionar");
+    // Faíscas temáticas no painel do jogador.
+    const cor = SELECT_TEMA[slot].cor;
+    const px = slot === "p1" ? 150 : LARGURA - 150;
+    for (let k = 0; k < 26; k++) {
+      const ang = Math.random() * Math.PI * 2;
+      const v = 120 + Math.random() * 260;
+      S.particulas.push({
+        x: px,
+        y: 250,
+        vx: Math.cos(ang) * v,
+        vy: Math.sin(ang) * v - 80,
+        vida: 0.5 + Math.random() * 0.35,
+        vidaMax: 0.85,
+        raio: 1.5 + Math.random() * 2.5,
+        cor,
+      });
+    }
+  }
+
+  _atualizarSelect(dt) {
+    const S = this.select;
+    const gp = this.gamepad.ler();
+
+    // Avanço dos timers de animação.
+    if (S.intro > 0) S.intro = Math.max(0, S.intro - dt);
+    for (const s of ["p1", "p2"]) {
+      if (S.trans[s] < 1) S.trans[s] = Math.min(1, S.trans[s] + dt * 4.5);
+      if (S.flash[s] > 0) S.flash[s] = Math.max(0, S.flash[s] - dt);
+    }
+    // Partículas de confirmação (gravidade leve + atrito).
+    for (const p of S.particulas) {
+      p.vida -= dt;
+      p.vx *= Math.pow(0.25, dt);
+      p.vy += 700 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+    S.particulas = S.particulas.filter((p) => p.vida > 0);
+
+    // Selo "PRONTOS!" → após o hold, segue para a seleção de estágio.
+    if (S.saindo > 0) {
+      S.saindo = Math.max(0, S.saindo - dt);
+      if (S.saindo === 0) this._irParaSelecaoMapa();
+      return; // congela a interação durante o selo
+    }
+
+    // ESC/B: cancela a(s) confirmação(ões) ou volta para a tela MODO.
+    if (this.entrada.voltar || gp.back) {
+      if (this.confirmado.p1 || this.confirmado.p2) {
+        this.confirmado.p1 = false;
+        this.confirmado.p2 = false;
+        this.somUI.tocar("voltar");
+      } else {
+        this.somUI.tocar("voltar");
+        this.tela = TELAS.MODO;
+      }
       return;
     }
-    const n = PERSONAGENS.length;
 
-    // Jogador 1 navega com A/D e confirma com soco (F) ou Enter.
+    let houveInput = false;
+
+    // --- P1: WASD + Soco (F); Enter também confirma quem falta. ---
     if (!this.confirmado.p1) {
-      const ant1 = this.escolha.p1;
-      if (this.entrada.borda("KeyA"))
-        this.escolha.p1 = (this.escolha.p1 + n - 1) % n;
-      if (this.entrada.borda("KeyD"))
-        this.escolha.p1 = (this.escolha.p1 + 1) % n;
-      if (this.escolha.p1 !== ant1) this.somUI.tocar("personagem");
-      if (this.entrada.borda(TECLAS.p1.soco)) {
-        this.confirmado.p1 = true;
-        this.somUI.tocar("selecionar");
+      if (this._moverCursorSelect("p1", "KeyA", "KeyD", "KeyW", "KeyS", gp)) {
+        houveInput = true;
+        this.somUI.tocar("personagem");
+      }
+      if (
+        this.entrada.borda(TECLAS.p1.soco) ||
+        (this.modo === "1p" && (this.entrada.confirmar || gp.confirm))
+      ) {
+        houveInput = true;
+        this._confirmarSelect("p1");
       }
     }
 
     if (this.modo === "2p") {
-      // Jogador 2 navega com ← → e confirma com soco (J).
+      // --- P2: setas + Soco (J). ---
       if (!this.confirmado.p2) {
-        const ant2 = this.escolha.p2;
-        if (this.entrada.borda("ArrowLeft"))
-          this.escolha.p2 = (this.escolha.p2 + n - 1) % n;
-        if (this.entrada.borda("ArrowRight"))
-          this.escolha.p2 = (this.escolha.p2 + 1) % n;
-        if (this.escolha.p2 !== ant2) this.somUI.tocar("personagem");
+        if (
+          this._moverCursorSelect("p2", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown")
+        ) {
+          houveInput = true;
+          this.somUI.tocar("personagem");
+        }
         if (this.entrada.borda(TECLAS.p2.soco)) {
-          this.confirmado.p2 = true;
-          this.somUI.tocar("selecionar");
+          houveInput = true;
+          this._confirmarSelect("p2");
         }
       }
-      // Enter confirma quem ainda falta (atalho).
+      // Enter (atalho): confirma o primeiro que ainda falta.
       if (this.entrada.confirmar) {
-        if (!this.confirmado.p1) {
-          this.confirmado.p1 = true;
-          this.somUI.tocar("selecionar");
-        } else if (!this.confirmado.p2) {
-          this.confirmado.p2 = true;
-          this.somUI.tocar("selecionar");
-        }
+        houveInput = true;
+        if (!this.confirmado.p1) this._confirmarSelect("p1");
+        else if (!this.confirmado.p2) this._confirmarSelect("p2");
       }
     } else {
-      // 1 Player: a CPU pega o personagem oposto até o P1 confirmar.
-      if (!this.confirmado.p1) this.escolha.p2 = (this.escolha.p1 + 1) % n;
-      if (this.entrada.confirmar) {
-        this.confirmado.p1 = true;
-        this.somUI.tocar("selecionar");
+      // 1 Player: a CPU acompanha um lutador diferente do P1 até ele confirmar.
+      if (!this.confirmado.p1) {
+        const idxP1 = this._persDoCursor("p1");
+        const alvo = SELECT_CELULAS.findIndex(
+          (c) => c.tipo === "pers" && PERSONAGENS.indexOf(c.pers) !== idxP1,
+        );
+        if (alvo >= 0 && alvo !== S.cursor.p2) {
+          S.prevCursor.p2 = S.cursor.p2;
+          S.cursor.p2 = alvo;
+          S.trans.p2 = 0;
+        }
+        this.escolha.p2 = this._persDoCursor("p2");
+      } else if (!this.confirmado.p2) {
+        // P1 confirmou: CPU "trava" no seu lutador.
+        this.confirmado.p2 = true;
+        this.escolha.p2 = this._persDoCursor("p2");
+        S.flash.p2 = 0.45;
       }
-      this.confirmado.p2 = this.confirmado.p1;
     }
 
-    // Personagens confirmados → seleção de ESTÁGIO (e depois a VS Screen).
-    if (this.confirmado.p1 && this.confirmado.p2) this._irParaSelecaoMapa();
+    // Contagem regressiva de "ficha": reinicia a cada input; ao zerar, auto-confirma.
+    if (houveInput) {
+      S.timer = TEMPO_SELECT;
+    } else {
+      S.timer = Math.max(0, S.timer - dt);
+      if (S.timer === 0) {
+        if (!this.confirmado.p1) this._confirmarSelect("p1", true);
+        if (this.modo === "2p" && !this.confirmado.p2)
+          this._confirmarSelect("p2", true);
+      }
+    }
+
+    // Ambos prontos → dispara o selo "PRONTOS!" (payoff) antes do estágio.
+    if (this.confirmado.p1 && this.confirmado.p2 && S.saindo === 0) {
+      S.saindo = 0.85;
+      this.somUI.tocar("confirmar");
+    }
   }
 
   // --- Tela MAPA: grade de estágios; navegação por teclado e gamepad (3) ---
@@ -3302,8 +3513,7 @@ class Jogo {
       return;
     }
     if (this.tela === TELAS.SELECT) {
-      this._desenharCenario(ctx);
-      this._desenharSelect(ctx);
+      this._desenharSelect(ctx); // fundo arcade próprio (cobre toda a tela)
       return;
     }
     if (this.tela === TELAS.MAPA) {
@@ -3928,85 +4138,566 @@ class Jogo {
   }
 
   // ---- Tela de seleção de personagem ---------------------------------------
-  _desenharSelect(ctx) {
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffd34d";
-    ctx.font = "bold 44px 'Segoe UI', sans-serif";
-    ctx.fillText("ESCOLHA SEU LUTADOR", LARGURA / 2, 96);
+  /* =========================================================================
+     TELA SELECT — RENDERIZAÇÃO ARCADE (estilo MK II / SF Alpha / KOF '98).
+     Regiões: [topo] título + contador de ficha; [esquerda] painel P1 (azul);
+     [direita] painel P2/CPU (vermelho); [centro] grade de lutadores com dois
+     cursores; [rodapé] dicas + indicador de espelho. Overlays: cortinas de
+     entrada, selo "PRONTOS!", scanlines/vinheta (CRT alternável com F2).
+     ========================================================================= */
 
-    // Dois painéis (P1 à esquerda, P2/CPU à direita).
-    const painel = (titulo, idx, confirmado, cx, ehCPU) => {
-      const pers = PERSONAGENS[idx];
-      const cw = 220,
-        ch = 220,
-        bx = cx - cw / 2,
-        by = 150;
-      ctx.fillStyle = "rgba(0,0,0,0.35)";
-      ctx.fillRect(bx, by, cw, ch);
-      ctx.strokeStyle = confirmado ? "#36d23a" : "#5cd6ff";
-      ctx.lineWidth = 4;
-      ctx.strokeRect(bx, by, cw, ch);
+  // Imagem completa do estágio de origem de um personagem (ao fundo do preview).
+  _imagemEstagio(arquivo) {
+    const mapas = (this.catalogo && this.catalogo.mapas) || [];
+    const m = mapas.find((x) => x.arquivo === arquivo);
+    return m ? m.full : null;
+  }
 
-      // Retrato: usa a foto real (silva.png/vitor.png) recortada para preencher
-      // o quadrado mantendo a proporção (efeito "cover"); cai no sprite idle se
-      // a foto não estiver disponível.
-      const foto = this.recursos.retrato(pers);
-      ctx.save();
+  // Fundo animado: gradiente púrpura profundo + raios pulsantes + brasas subindo.
+  _fundoSelect(ctx, agora) {
+    const g = ctx.createLinearGradient(0, 0, 0, ALTURA);
+    g.addColorStop(0, "#140e26");
+    g.addColorStop(0.55, "#0a0815");
+    g.addColorStop(1, "#05030c");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    // Raios geométricos pulsantes irradiando do centro (padrão de arena).
+    const cx = LARGURA / 2,
+      cy = ALTURA * 0.46;
+    const pulso = 0.5 + 0.5 * Math.sin(agora / 600);
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = 0.05 + 0.04 * pulso;
+    ctx.translate(cx, cy);
+    ctx.rotate(agora / 9000);
+    for (let i = 0; i < 16; i++) {
+      ctx.rotate((Math.PI * 2) / 16);
+      ctx.fillStyle = i % 2 === 0 ? SELECT_TEMA.ouro : SELECT_TEMA.p1.cor;
       ctx.beginPath();
-      ctx.rect(bx, by, cw, ch);
-      ctx.clip();
-      if (foto) {
-        const escala = Math.max(cw / foto.width, ch / foto.height);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-26, 900);
+      ctx.lineTo(26, 900);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Brasas subindo (procedurais, baseadas no tempo — sem estado).
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 34; i++) {
+      const semente = i * 127.3;
+      const vel = 24 + (i % 7) * 9;
+      const yy = ALTURA - ((agora / 1000) * vel + semente * 13) % (ALTURA + 60);
+      const xx = (semente * 71) % LARGURA + Math.sin(agora / 700 + i) * 14;
+      const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(agora / 400 + i));
+      ctx.globalAlpha = a * (yy / ALTURA);
+      ctx.fillStyle = i % 3 === 0 ? SELECT_TEMA.ouro : "#ff7a3a";
+      ctx.beginPath();
+      ctx.arc(xx, yy, 1 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // Barra de atributo segmentada (0–5) com rótulo à esquerda.
+  _barraAtributo(ctx, cx, y, rotulo, valor) {
+    const left = cx - 110;
+    ctx.textAlign = "left";
+    ctx.font = "bold 12px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "#cfc6e0";
+    ctx.fillText(rotulo, left, y + 10);
+    const segs = 5,
+      sw = 18,
+      gap = 4;
+    const barW = segs * sw + (segs - 1) * gap;
+    const bx = cx + 110 - barW;
+    for (let i = 0; i < segs; i++) {
+      const x = bx + i * (sw + gap);
+      const ativo = i < valor;
+      ctx.fillStyle = ativo ? SELECT_TEMA.ouro : "#241d3a";
+      ctx.fillRect(x, y, sw, 11);
+      if (ativo) {
+        ctx.fillStyle = "rgba(255,255,255,0.35)"; // brilho no topo
+        ctx.fillRect(x, y, sw, 3);
+      }
+      ctx.strokeStyle = "#0a0712";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, sw - 1, 10);
+    }
+  }
+
+  // Linha de estrelas de dificuldade (1–5), preenchidas em dourado.
+  _estrelasDificuldade(ctx, cx, y, n) {
+    const left = cx - 110;
+    ctx.textAlign = "left";
+    ctx.font = "bold 12px 'Segoe UI', sans-serif";
+    ctx.fillStyle = "#cfc6e0";
+    ctx.fillText("DIFICULDADE", left, y + 11);
+    ctx.font = "14px 'Segoe UI', sans-serif";
+    const estrelas = "★★★★★";
+    const w = ctx.measureText(estrelas).width;
+    const bx = cx + 110 - w;
+    ctx.fillStyle = "#241d3a";
+    ctx.fillText(estrelas, bx, y + 12);
+    ctx.fillStyle = SELECT_TEMA.ouro;
+    ctx.fillText("★★★★★".slice(0, n), bx, y + 12);
+  }
+
+  // Painel lateral de PREVIEW de um jogador (foto + estágio + ficha completa).
+  _painelSelect(ctx, slot, cx, agora) {
+    const S = this.select;
+    const tema = SELECT_TEMA[slot];
+    const cel = SELECT_CELULAS[S.cursor[slot]];
+    const confirmado = this.confirmado[slot];
+    const ehCPU = slot === "p2" && this.modo === "1p";
+    const blink = Math.floor(agora / 250) % 2 === 0;
+
+    // Faixa indicadora (sempre visível) no topo do painel.
+    ctx.textAlign = "center";
+    ctx.font = "bold 16px 'Segoe UI', sans-serif";
+    const titulo = slot === "p1" ? "P1" : ehCPU ? "CPU" : "P2";
+    let rotulo;
+    if (confirmado) rotulo = `${titulo} — PRONTO!`;
+    else if (ehCPU) rotulo = `${titulo} — AGUARDE`;
+    else rotulo = `${titulo} — ESCOLHA SEU LUTADOR`;
+    ctx.fillStyle = confirmado ? "#36d23a" : tema.cor;
+    if (!confirmado && !blink) ctx.fillStyle = tema.brilho;
+    ctx.fillText(rotulo, cx, 102);
+
+    // Caixa do retrato com moldura temática.
+    const bw = 220,
+      bh = 178,
+      bx = cx - bw / 2,
+      by = 116;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(bx, by, bw, bh);
+    ctx.clip();
+    // Fundo: estágio de origem (escurecido) OU gradiente neutro.
+    if (cel.tipo === "pers") {
+      const palco = this._imagemEstagio(this.recursos.ficha(cel.pers).estagio);
+      if (palco && palco.width) {
+        this._desenharThumb(ctx, palco, bx, by, bw, bh);
+        ctx.fillStyle = "rgba(8,5,20,0.5)";
+        ctx.fillRect(bx, by, bw, bh);
+      } else {
+        ctx.fillStyle = "#0c0a18";
+        ctx.fillRect(bx, by, bw, bh);
+      }
+      // Foto real do lutador (cover), com sprite idle como fallback.
+      const foto = this.recursos.retrato(cel.pers);
+      if (foto && foto.width) {
+        const escala = Math.max(bw / foto.width, bh / foto.height);
         const dw = foto.width * escala,
           dh = foto.height * escala;
         ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(foto, cx - dw / 2, by + (ch - dh) / 2, dw, dh);
+        ctx.drawImage(foto, cx - dw / 2, by + (bh - dh) / 2, dw, dh);
       } else {
-        const fr = this.recursos.frame(pers, "idle", 0);
+        const fr = this.recursos.frame(cel.pers, "idle", 0);
         if (fr && fr.ok) {
           ctx.imageSmoothingEnabled = false;
-          ctx.drawImage(fr.img, cx - 110, by, 220, 220);
+          const dh = bh * 1.15,
+            dw = dh;
+          if (slot === "p2") {
+            ctx.translate(cx, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-cx, 0);
+          }
+          ctx.drawImage(fr.img, cx - dw / 2, by + bh - dh, dw, dh);
         }
       }
+    } else if (cel.tipo === "random") {
+      const g = ctx.createLinearGradient(bx, by, bx, by + bh);
+      g.addColorStop(0, "#241a3a");
+      g.addColorStop(1, "#0c0a18");
+      ctx.fillStyle = g;
+      ctx.fillRect(bx, by, bw, bh);
+      const p = 0.6 + 0.4 * Math.sin(agora / 280);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.shadowColor = tema.cor;
+      ctx.shadowBlur = 26 * p;
+      ctx.fillStyle = SELECT_TEMA.ouro;
+      ctx.font = "900 110px 'Segoe UI', monospace";
+      ctx.fillText("?", cx, by + bh / 2);
+      ctx.shadowBlur = 0;
+      ctx.textBaseline = "alphabetic";
+    } else {
+      // Bloqueado: cadeado.
+      ctx.fillStyle = "#0c0a18";
+      ctx.fillRect(bx, by, bw, bh);
+      this._desenharCadeado(ctx, cx, by + bh / 2 - 6, 46, "#5a4a7a");
+    }
+    // Flash de transição ao trocar de lutador.
+    if (S.trans[slot] < 1) {
+      ctx.fillStyle = `rgba(255,255,255,${(1 - S.trans[slot]) * 0.85})`;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    // Glitch de confirmação: fatias coloridas deslocadas + flash.
+    if (S.flash[slot] > 0) {
+      const f = S.flash[slot] / 0.45;
+      ctx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 4; i++) {
+        const sy = by + Math.random() * (bh - 14);
+        ctx.fillStyle = i % 2 === 0 ? tema.cor : SELECT_TEMA.ouro;
+        ctx.globalAlpha = 0.5 * f;
+        ctx.fillRect(bx + (Math.random() - 0.5) * 16, sy, bw, 5 + Math.random() * 8);
+      }
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = `rgba(255,255,255,${0.5 * f})`;
+      ctx.fillRect(bx, by, bw, bh);
+    }
+    ctx.restore();
+
+    // Moldura ornamentada (dupla borda + cantos pixel), verde quando confirmado.
+    const corBorda = confirmado ? "#36d23a" : tema.cor;
+    ctx.strokeStyle = "#0a0712";
+    ctx.lineWidth = 6;
+    ctx.strokeRect(bx - 3, by - 3, bw + 6, bh + 6);
+    ctx.strokeStyle = corBorda;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx - 1.5, by - 1.5, bw + 3, bh + 3);
+    this._cantosPixel(ctx, bx - 4, by - 4, bw + 8, bh + 8, 4, corBorda);
+
+    // ----- Ficha textual abaixo do retrato -----
+    ctx.textAlign = "center";
+    if (cel.tipo === "pers") {
+      const info = this.recursos.ficha(cel.pers);
+      // Nome estilizado (sombra dura + brilho temático).
+      ctx.save();
+      ctx.shadowColor = tema.forte;
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "900 26px 'Segoe UI', sans-serif";
+      ctx.fillText(this.recursos.nome(cel.pers).toUpperCase(), cx, by + bh + 30);
       ctx.restore();
-      // Nome + título.
-      ctx.fillStyle = "#5cd6ff";
-      ctx.font = "bold 22px 'Segoe UI', sans-serif";
-      ctx.fillText(titulo, cx, by - 18);
-      ctx.fillStyle = confirmado ? "#36d23a" : "#fff";
-      ctx.font = "bold 26px 'Segoe UI', sans-serif";
-      ctx.fillText(this.recursos.nome(pers), cx, by + ch + 38);
-      ctx.fillStyle = confirmado ? "#36d23a" : "#9b90b5";
-      ctx.font = "16px 'Segoe UI', sans-serif";
+      // Cidade + estilo de luta.
+      ctx.fillStyle = SELECT_TEMA.ouro;
+      ctx.font = "bold 12px 'Segoe UI', sans-serif";
+      ctx.fillText(info.cidade, cx, by + bh + 48);
+      ctx.fillStyle = tema.brilho;
+      ctx.fillText(info.estilo, cx, by + bh + 64);
+      // Barras de atributo.
+      const aY = by + bh + 78;
+      this._barraAtributo(ctx, cx, aY, "FORÇA", info.atributos.forca);
+      this._barraAtributo(ctx, cx, aY + 17, "VELOC.", info.atributos.velocidade);
+      this._barraAtributo(ctx, cx, aY + 34, "DEFESA", info.atributos.defesa);
+      this._barraAtributo(ctx, cx, aY + 51, "ESPECIAL", info.atributos.especial);
+      this._estrelasDificuldade(ctx, cx, aY + 70, info.dificuldade);
+      // Frase de lore.
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#9b90b5";
+      ctx.font = "italic 12px 'Segoe UI', sans-serif";
+      ctx.fillText(info.lore[0], cx, aY + 92);
+      if (info.lore[1]) ctx.fillText(info.lore[1], cx, aY + 107);
+    } else {
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 24px 'Segoe UI', sans-serif";
       ctx.fillText(
-        confirmado ? "PRONTO!" : ehCPU ? "CPU escolhe" : "◀  trocar  ▶",
+        cel.tipo === "random" ? "ALEATÓRIO" : "BLOQUEADO",
         cx,
-        by + ch + 64,
+        by + bh + 32,
       );
+      ctx.fillStyle = "#9b90b5";
+      ctx.font = "13px 'Segoe UI', sans-serif";
+      ctx.fillText(
+        cel.tipo === "random" ? "O destino escolhe por você" : "EM BREVE",
+        cx,
+        by + bh + 54,
+      );
+    }
+  }
+
+  // Cadeado simples (slot bloqueado) centrado em (cx, cy).
+  _desenharCadeado(ctx, cx, cy, s, cor) {
+    ctx.save();
+    ctx.strokeStyle = cor;
+    ctx.fillStyle = cor;
+    ctx.lineWidth = s * 0.12;
+    // Arco superior.
+    ctx.beginPath();
+    ctx.arc(cx, cy - s * 0.18, s * 0.28, Math.PI, 0);
+    ctx.stroke();
+    // Corpo.
+    ctx.fillRect(cx - s * 0.42, cy, s * 0.84, s * 0.6);
+    // Furo da chave.
+    ctx.fillStyle = "#0c0a18";
+    ctx.beginPath();
+    ctx.arc(cx, cy + s * 0.24, s * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Geometria de uma célula da grade (índice → retângulo em tela).
+  _retCelulaSelect(idx) {
+    const cellW = 92,
+      cellH = 92,
+      gap = 14;
+    const totalW = SELECT_COLS * cellW + (SELECT_COLS - 1) * gap;
+    const startX = LARGURA / 2 - totalW / 2;
+    const startY = 212;
+    const col = idx % SELECT_COLS,
+      lin = Math.floor(idx / SELECT_COLS);
+    return {
+      x: startX + col * (cellW + gap),
+      y: startY + lin * (cellH + gap),
+      w: cellW,
+      h: cellH,
     };
+  }
 
-    painel(
-      "JOGADOR 1",
-      this.escolha.p1,
-      this.confirmado.p1,
-      LARGURA * 0.3,
-      false,
-    );
-    painel(
-      this.modo === "1p" ? "CPU" : "JOGADOR 2",
-      this.escolha.p2,
-      this.confirmado.p2,
-      LARGURA * 0.7,
-      this.modo === "1p",
-    );
+  // Grade central de lutadores + dois cursores independentes.
+  _gradeSelect(ctx, agora) {
+    const S = this.select;
+    for (let idx = 0; idx < SELECT_CELULAS.length; idx++) {
+      const cel = SELECT_CELULAS[idx];
+      const { x, y, w, h } = this._retCelulaSelect(idx);
+      const tira = 16; // faixa de nome
+      const th = h - tira;
 
+      // Conteúdo da célula.
+      if (cel.tipo === "pers") {
+        const foto = this.recursos.retrato(cel.pers);
+        if (foto && foto.width) {
+          this._desenharThumb(ctx, foto, x, y, w, th);
+        } else {
+          const fr = this.recursos.frame(cel.pers, "idle", 0);
+          ctx.fillStyle = "#0c0a18";
+          ctx.fillRect(x, y, w, th);
+          if (fr && fr.ok) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(fr.img, x, y - 6, w, th + 12);
+          }
+        }
+        // Faixa do primeiro nome.
+        ctx.fillStyle = "#1a1430";
+        ctx.fillRect(x, y + th, w, tira);
+        ctx.fillStyle = "#cfc6e0";
+        ctx.font = "bold 11px 'Segoe UI', sans-serif";
+        ctx.textAlign = "center";
+        const primeiro = this.recursos.nome(cel.pers).split(" ")[0].toUpperCase();
+        ctx.fillText(primeiro, x + w / 2, y + th + 12);
+      } else if (cel.tipo === "random") {
+        this._desenharCelulaAleatoria(ctx, x, y, w, th, agora);
+        ctx.fillStyle = "#1a1430";
+        ctx.fillRect(x, y + th, w, tira);
+        ctx.fillStyle = SELECT_TEMA.ouro;
+        ctx.font = "bold 11px 'Segoe UI', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("?", x + w / 2, y + th + 12);
+      } else {
+        ctx.fillStyle = "#100c1e";
+        ctx.fillRect(x, y, w, th);
+        this._desenharCadeado(ctx, x + w / 2, y + th / 2 - 4, 30, "#4a3d6a");
+        ctx.fillStyle = "#1a1430";
+        ctx.fillRect(x, y + th, w, tira);
+        ctx.fillStyle = "#6a5d8a";
+        ctx.font = "bold 10px 'Segoe UI', sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("EM BREVE", x + w / 2, y + th + 12);
+      }
+
+      // Borda pixel base.
+      ctx.strokeStyle = "#3a2f4f";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+      this._cantosPixel(ctx, x, y, w, h, 3, "#5a4a7a");
+    }
+
+    // Cursores (desenhados por cima): P2 mais externo p/ ficar visível no clone.
+    // Em 1P o cursor da CPU também aparece, indicando a escolha do oponente.
+    this._cursorSelect(ctx, "p2", agora);
+    this._cursorSelect(ctx, "p1", agora);
+  }
+
+  // Cursor animado de um jogador sobre sua célula atual.
+  _cursorSelect(ctx, slot, agora) {
+    if (slot === "p2" && this.modo === "1p" && !this.confirmado.p2 && this.confirmado.p1)
+      return;
+    const S = this.select;
+    const tema = SELECT_TEMA[slot];
+    const { x, y, w, h } = this._retCelulaSelect(S.cursor[slot]);
+    const confirmado = this.confirmado[slot];
+    // P1 colado na célula; P2 um pouco mais externo (visível mesmo sobreposto).
+    const out = slot === "p1" ? 3 : 7;
+    const osc = confirmado ? 0 : Math.round(2 * (0.5 + 0.5 * Math.sin(agora / 150)));
+    const cx = x - out - osc,
+      cy = y - out - osc,
+      cw = w + (out + osc) * 2,
+      ch = h + (out + osc) * 2;
+    const piscar = Math.floor(agora / 110) % 2 === 0;
+    let cor = tema.cor;
+    if (confirmado) cor = "#36d23a";
+    else if (piscar) cor = tema.brilho;
+    ctx.strokeStyle = cor;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(cx, cy, cw, ch);
+    this._cantosPixel(ctx, cx, cy, cw, ch, 4, cor);
+
+    // Etiqueta do jogador na quina.
+    const tag = slot === "p1" ? "1P" : "2P";
+    ctx.fillStyle = cor;
+    ctx.fillRect(cx - 2, cy - 16, 24, 16);
+    ctx.fillStyle = "#0a0712";
+    ctx.font = "bold 12px 'Segoe UI', sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(tag, cx + 10, cy - 4);
+
+    // Selo "PRONTO" quando confirmado.
+    if (confirmado) {
+      ctx.save();
+      ctx.translate(cx + cw / 2, cy + ch / 2);
+      ctx.rotate(-0.18);
+      ctx.fillStyle = "rgba(54,210,58,0.9)";
+      ctx.fillRect(-44, -13, 88, 26);
+      ctx.fillStyle = "#06210a";
+      ctx.font = "900 16px 'Segoe UI', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("PRONTO", 0, 6);
+      ctx.restore();
+    }
+  }
+
+  // Overlays finais: cortinas de entrada, selo "PRONTOS!", scanlines/vinheta.
+  _overlaySelect(ctx, agora) {
+    const S = this.select;
+
+    // Selo "LUTADORES PRONTOS!" antes de seguir para o estágio.
+    if (S.saindo > 0) {
+      const f = 1 - S.saindo / 0.85; // 0→1
+      ctx.fillStyle = `rgba(0,0,0,${0.35 * f})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+      const jit = (Math.random() - 0.5) * 6 * (1 - f); // tremor glitch inicial
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.translate(LARGURA / 2 + jit, ALTURA / 2);
+      ctx.shadowColor = SELECT_TEMA.ouro;
+      ctx.shadowBlur = 28;
+      ctx.fillStyle = "#fff";
+      ctx.font = "900 56px 'Segoe UI', sans-serif";
+      ctx.fillText("PRONTOS!", 0, 0);
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = SELECT_TEMA.ouro;
+      ctx.font = "bold 20px 'Segoe UI', sans-serif";
+      ctx.fillText("PREPAREM-SE PARA LUTAR", 0, 38);
+      ctx.restore();
+    }
+
+    // Cortinas de entrada (abrem do centro) + flash inicial.
+    if (S.intro > 0) {
+      const prog = S.intro / 0.7; // 1→0
+      const halfW = (LARGURA / 2) * prog;
+      ctx.fillStyle = "#05030c";
+      ctx.fillRect(0, 0, halfW, ALTURA);
+      ctx.fillRect(LARGURA - halfW, 0, halfW, ALTURA);
+      // Bordas brilhantes das cortinas.
+      ctx.fillStyle = SELECT_TEMA.ouro;
+      ctx.fillRect(halfW - 3, 0, 3, ALTURA);
+      ctx.fillRect(LARGURA - halfW, 0, 3, ALTURA);
+      const flash = Math.max(0, prog - 0.55) * 2.2;
+      if (flash > 0) {
+        ctx.fillStyle = `rgba(255,255,255,${Math.min(0.8, flash)})`;
+        ctx.fillRect(0, 0, LARGURA, ALTURA);
+      }
+    }
+
+    // Filtro CRT (alternável com F2): scanlines + vinheta.
+    if (this.crt) {
+      this._scanlines(ctx);
+      const vg = ctx.createRadialGradient(
+        LARGURA / 2, ALTURA / 2, ALTURA * 0.35,
+        LARGURA / 2, ALTURA / 2, ALTURA * 0.78,
+      );
+      vg.addColorStop(0, "rgba(0,0,0,0)");
+      vg.addColorStop(1, "rgba(0,0,0,0.6)");
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+  }
+
+  _desenharSelect(ctx) {
+    const S = this.select;
+    if (!S) return;
+    const agora = performance.now();
+
+    this._fundoSelect(ctx, agora);
+
+    // Título com brilho pulsante.
+    const pulso = 0.55 + 0.45 * Math.sin(agora / 350);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.shadowColor = SELECT_TEMA.ouro;
+    ctx.shadowBlur = 24 * pulso;
+    ctx.fillStyle = SELECT_TEMA.ouro;
+    ctx.font = "900 40px 'Segoe UI', sans-serif";
+    ctx.fillText("ESCOLHA SEU LUTADOR", LARGURA / 2, 56);
+    ctx.restore();
+
+    // Contador de "ficha" (centro, abaixo do título). Pisca em vermelho no fim.
+    const seg = Math.ceil(S.timer);
+    const urgente = seg <= 10;
+    const bw = 70,
+      bx = LARGURA / 2 - bw / 2,
+      by = 68;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(bx, by, bw, 30);
+    ctx.strokeStyle = urgente ? "#ff5a5a" : SELECT_TEMA.ouro;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, 30);
+    ctx.textAlign = "center";
+    ctx.fillStyle =
+      urgente && Math.floor(agora / 250) % 2 === 0 ? "#ff5a5a" : "#fff";
+    ctx.font = "900 22px 'Segoe UI', monospace";
+    ctx.fillText(String(seg).padStart(2, "0"), LARGURA / 2, by + 23);
+    if (urgente && !this.confirmado.p1) {
+      ctx.fillStyle =
+        Math.floor(agora / 300) % 2 === 0 ? SELECT_TEMA.ouro : "#ff5a5a";
+      ctx.font = "bold 12px 'Segoe UI', sans-serif";
+      ctx.fillText("INSIRA UMA FICHA!", LARGURA / 2, by + 46);
+    }
+
+    // Painéis de preview (laterais) e grade central.
+    this._painelSelect(ctx, "p1", 150, agora);
+    this._painelSelect(ctx, "p2", LARGURA - 150, agora);
+    this._gradeSelect(ctx, agora);
+
+    // Partículas de confirmação (faíscas temáticas).
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (const p of S.particulas) {
+      ctx.globalAlpha = Math.max(0, p.vida / p.vidaMax);
+      ctx.fillStyle = p.cor;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.raio, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // Indicador de ESPELHO/CLONE quando ambos miram o mesmo lutador.
+    const i1 = this._persDoCursor("p1"),
+      i2 = this._persDoCursor("p2");
+    if (i1 >= 0 && i1 === i2) {
+      ctx.textAlign = "center";
+      ctx.fillStyle =
+        Math.floor(agora / 200) % 2 === 0 ? SELECT_TEMA.ouro : "#fff";
+      ctx.font = "900 18px 'Segoe UI', sans-serif";
+      ctx.fillText("— ESPELHO! —", LARGURA / 2, 432);
+    }
+
+    // Rodapé com o mapeamento de teclas.
+    ctx.textAlign = "center";
     ctx.fillStyle = "#9b90b5";
-    ctx.font = "16px 'Segoe UI', sans-serif";
+    ctx.font = "13px 'Segoe UI', sans-serif";
     const dica =
       this.modo === "2p"
-        ? "P1: A/D e F p/ confirmar  •  P2: ←/→ e J p/ confirmar  •  ESC volta"
-        : "A/D para trocar  •  ENTER/F confirma  •  ESC volta";
-    ctx.fillText(dica, LARGURA / 2, 500);
+        ? "P1: WASD + F   •   P2: ← ↑ → ↓ + J   •   ESC cancela/volta   •   F2 CRT"
+        : "WASD para mover   •   F / ENTER confirma   •   ESC volta   •   F2 CRT";
+    ctx.fillText(dica, LARGURA / 2, ALTURA - 16);
+
+    this._overlaySelect(ctx, agora);
   }
 
   /* =========================================================================

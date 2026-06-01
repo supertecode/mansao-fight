@@ -11,6 +11,22 @@
   "players": {
     "p1": {
       "nome": "Samuel Silva",
+      "ficha": {
+        "cidade": "IGUAPE — SP",
+        "estilo": "JIU-JITSU FAIXA BRANCA",
+        "lore": [
+          "Forjado nos corredores da UTFPR,",
+          "não há prova final que o derrube."
+        ],
+        "atributos": {
+          "forca": 4,
+          "velocidade": 3,
+          "defesa": 4,
+          "especial": 3
+        },
+        "dificuldade": 2,
+        "estagio": "arena1.png"
+      },
       "animacoes": {
         "idle": {
           "frames": 1,
@@ -189,6 +205,22 @@
     },
     "p2": {
       "nome": "Vítor De Sordi",
+      "ficha": {
+        "cidade": "SANTANA DO ITARARÉ — PR",
+        "estilo": "LUTA DEITADO",
+        "lore": [
+          "Senhor absoluto da Mansão Broxa,",
+          "luta sujo e não pede desculpas."
+        ],
+        "atributos": {
+          "forca": 2,
+          "velocidade": 5,
+          "defesa": 3,
+          "especial": 3
+        },
+        "dificuldade": 3,
+        "estagio": "arena2.png"
+      },
       "animacoes": {
         "idle": {
           "frames": 1,
@@ -379,6 +411,22 @@
     },
     "p3": {
       "nome": "Erick Barbosa",
+      "ficha": {
+        "cidade": "IGUAPE — SP",
+        "estilo": "OTAKU GAMER",
+        "lore": [
+          "Reflexos de quem nunca solta o controle,",
+          "dança entre os golpes e contra-ataca."
+        ],
+        "atributos": {
+          "forca": 3,
+          "velocidade": 5,
+          "defesa": 2,
+          "especial": 4
+        },
+        "dificuldade": 4,
+        "estagio": "arena3.png"
+      },
       "animacoes": {
         "idle": {
           "frames": 2,
