@@ -481,6 +481,108 @@ class Recursos {
 }
 
 /* ===========================================================================
+   1b) CATÁLOGO DE MAPAS — (1) MÓDULO DE DADOS de mapas
+   Descobre os mapas em TEMPO DE EXECUÇÃO sem nomes hardcoded no código: tenta
+   carregar assets/mapas/arena1.png, arena2.png, ... via Image.onload, parando
+   após uma sequência de ausências. (Um navegador não consegue listar pastas
+   offline, então a "varredura" é feita por tentativa de carregamento.)
+   O manifest.json pode, OPCIONALMENTE, trazer um array "mapas" só para nomear
+   bonito cada arquivo (id/nome) — mas a LISTA em si vem da varredura.
+
+   Cada mapa expõe:  id, nome (exibição), arquivo, caminho (imagem completa),
+   caminhos[] (camadas para parallax futuro), full (Image), caminhoThumb e
+   thumb (miniatura em <canvas>, gerada da imagem cheia com letterbox).
+   =========================================================================== */
+
+// Gera uma MINIATURA (canvas) a partir da imagem cheia, preservando a proporção
+// de aspecto com letterbox preto. Evita precisar de arquivos de thumb separados.
+function gerarMiniatura(img, maxW, maxH) {
+  const c = document.createElement("canvas");
+  c.width = maxW;
+  c.height = maxH;
+  const cx = c.getContext("2d");
+  cx.fillStyle = "#000";
+  cx.fillRect(0, 0, maxW, maxH);
+  if (img && img.width) {
+    const escala = Math.min(maxW / img.width, maxH / img.height);
+    const dw = img.width * escala;
+    const dh = img.height * escala;
+    cx.imageSmoothingEnabled = true; // downscale suave fica melhor na miniatura
+    cx.drawImage(img, (maxW - dw) / 2, (maxH - dh) / 2, dw, dh);
+  }
+  return c;
+}
+
+class CatalogoMapas {
+  constructor(manifest) {
+    this.manifest = manifest;
+    this.mapas = [];
+  }
+
+  async descobrir() {
+    // Metadados opcionais por arquivo (nome de exibição), vindos do manifest.
+    const meta = {};
+    if (Array.isArray(this.manifest.mapas)) {
+      for (const m of this.manifest.mapas)
+        if (m && m.arquivo) meta[m.arquivo] = m;
+    }
+
+    const MAX_PROBE = 64; // teto de segurança da varredura
+    const MAX_GAP = 2; // tolera buracos na numeração (ex.: arena1, arena3...)
+    const achados = [];
+    const vistos = new Set();
+    let faltasSeguidas = 0;
+
+    // (a) Varredura por padrão arena<N>.png — descoberta automática real.
+    for (let i = 1; i <= MAX_PROBE && faltasSeguidas <= MAX_GAP; i++) {
+      const arquivo = `arena${i}.png`;
+      const caminho = `assets/mapas/${arquivo}`;
+      const res = await carregarImagem(caminho);
+      if (res.ok) {
+        faltasSeguidas = 0;
+        vistos.add(arquivo);
+        achados.push(
+          this._descritor(arquivo, caminho, res.img, meta[arquivo], achados.length + 1),
+        );
+      } else {
+        faltasSeguidas++;
+      }
+    }
+
+    // (b) Inclui mapas declarados no manifest que NÃO seguem o padrão arena<N>.
+    if (Array.isArray(this.manifest.mapas)) {
+      for (const m of this.manifest.mapas) {
+        if (!m || !m.arquivo || vistos.has(m.arquivo)) continue;
+        const caminho = `assets/mapas/${m.arquivo}`;
+        const res = await carregarImagem(caminho);
+        if (res.ok) {
+          vistos.add(m.arquivo);
+          achados.push(this._descritor(m.arquivo, caminho, res.img, m, achados.length + 1));
+        }
+      }
+    }
+
+    this.mapas = achados;
+    return this.mapas;
+  }
+
+  _descritor(arquivo, caminho, img, meta, ordem) {
+    meta = meta || {};
+    const baseId = arquivo.replace(/\.[^.]+$/, "");
+    return {
+      id: meta.id || baseId,
+      nome: String(meta.nome || `ARENA ${ordem}`).toUpperCase(),
+      arquivo,
+      caminho, // caminho da imagem COMPLETA
+      caminhos: [caminho], // camadas extras (parallax) caberiam aqui no futuro
+      full: img, // Image já carregada da imagem completa
+      caminhoThumb: caminho, // a miniatura é gerada da imagem cheia
+      thumb: gerarMiniatura(img, 320, 180), // <canvas> 16:9 com letterbox
+    };
+  }
+}
+
+/* ===========================================================================
    2) ANIMATOR  (inalterado)
    =========================================================================== */
 
@@ -611,6 +713,51 @@ class Entrada {
   // Borda única (pressionou agora) para navegação de menus.
   borda(code) {
     return this.bordas.includes(code);
+  }
+}
+
+/* ===========================================================================
+   3b) GAMEPAD — leitura mínima por BORDA para navegação de menus.
+   Sem dependências: usa a Gamepad API nativa. Converte "segurar" do D-pad/
+   analógico e botões em eventos de borda (disparam uma vez por pressionada),
+   ideal para mover o cursor da seleção de mapa sem repetição descontrolada.
+   =========================================================================== */
+class GamepadNav {
+  constructor() {
+    this.anterior = {}; // estado do quadro anterior (para detectar a borda)
+  }
+
+  // Retorna {left,right,up,down,confirm,back}; true apenas no quadro da BORDA.
+  ler() {
+    const atual = {
+      left: false,
+      right: false,
+      up: false,
+      down: false,
+      confirm: false,
+      back: false,
+    };
+    const pads =
+      typeof navigator !== "undefined" && navigator.getGamepads
+        ? navigator.getGamepads()
+        : [];
+    for (const gp of pads) {
+      if (!gp) continue;
+      const ax = gp.axes[0] || 0;
+      const ay = gp.axes[1] || 0;
+      const b = gp.buttons;
+      const apert = (i) => b[i] && b[i].pressed;
+      if (ax < -0.5 || apert(14)) atual.left = true; // analógico ← ou D-pad ←
+      if (ax > 0.5 || apert(15)) atual.right = true;
+      if (ay < -0.5 || apert(12)) atual.up = true;
+      if (ay > 0.5 || apert(13)) atual.down = true;
+      if (apert(0) || apert(9)) atual.confirm = true; // A / Start
+      if (apert(1)) atual.back = true; // B
+    }
+    const out = {};
+    for (const k of Object.keys(atual)) out[k] = atual[k] && !this.anterior[k];
+    this.anterior = atual;
+    return out;
   }
 }
 
@@ -975,6 +1122,9 @@ class MusicaFX {
       menu: "assets/audio/musica_menu.mp3",
       luta: "assets/audio/musica_luta.mp3",
       vitoria: "assets/audio/musica_vitoria.mp3",
+      // Trilha EXCLUSIVA da VS Screen (não reutiliza nenhuma já existente).
+      // Solte o arquivo abaixo em assets/audio/ — se faltar, a VS roda sem música.
+      vs: "assets/audio/musica_vs.mp3",
     };
     for (const [nome, src] of Object.entries(arquivos)) {
       const audio = new Audio(src);
@@ -1884,10 +2034,82 @@ const TELAS = {
   START: "start",
   MODO: "modo",
   DIFICULDADE: "dificuldade",
-  SELECT: "select",
+  SELECT: "select", // seleção de PERSONAGEM
+  MAPA: "mapa", // seleção de ESTÁGIO (NOVO)
+  VS: "vs", // tela intermediária "VS Screen" (NOVO)
   LUTA: "luta",
   VITORIA: "vitoria",
   CONFIG: "config",
+};
+
+/* ===========================================================================
+   SELEÇÃO DE MAPA — (3) MÓDULO DE ESTADO da seleção
+   Só guarda/atualiza qual mapa está sob o cursor numa grade responsiva, com
+   WRAP nas bordas. Não desenha nada (separado da UI) nem carrega assets
+   (separado dos dados): recebe a lista já pronta do CatalogoMapas.
+   =========================================================================== */
+class SelecaoMapa {
+  constructor(mapas) {
+    this.mapas = mapas;
+    this.indice = 0;
+    this._calcularGrade();
+  }
+
+  // Grade responsiva: acomoda a quantidade encontrada (ex.: 3→3×1, 6→3×2,
+  // 12→4×3). Até 4 por linha em quantidades pequenas; acima, formato quadrado.
+  _calcularGrade() {
+    const n = Math.max(1, this.mapas.length);
+    let cols = Math.min(4, n);
+    if (n > 4) cols = Math.min(5, Math.ceil(Math.sqrt(n)));
+    this.cols = cols;
+    this.linhas = Math.ceil(n / cols);
+  }
+
+  get mapaAtual() {
+    return this.mapas[this.indice] || null;
+  }
+
+  // Move o cursor com WRAP nas bordas. dx/dy ∈ {-1,0,1}. Retorna se mudou.
+  mover(dx, dy) {
+    const n = this.mapas.length;
+    if (n === 0) return false;
+    const anterior = this.indice;
+
+    if (dx !== 0) {
+      // Horizontal: anda no índice global (wrap natural ao fim/início da lista).
+      this.indice = (this.indice + dx + n) % n;
+    } else if (dy !== 0) {
+      // Vertical: mantém a coluna e troca de linha, saltando linhas sem célula.
+      const col = this.indice % this.cols;
+      let lin = Math.floor(this.indice / this.cols);
+      for (let passo = 0; passo < this.linhas; passo++) {
+        lin = (lin + dy + this.linhas) % this.linhas;
+        const alvo = lin * this.cols + col;
+        if (alvo < n) {
+          this.indice = alvo;
+          break;
+        }
+      }
+    }
+    return this.indice !== anterior;
+  }
+}
+
+/* ===========================================================================
+   VS SCREEN — linha do tempo (segundos). >>> AJUSTE FINO DE TIMING AQUI <<<
+   Total = 0.5 + 1.5 + 1.2 + 0.05 ≈ 3.25s (dentro da faixa pedida de 3–5s).
+     entrada   : lutadores deslizam das bordas até o centro.
+     confronto : idle se encarando + fundo scrollando + "VS" pulsando.
+     round     : "ROUND N" entra com zoom-in.
+     flash     : flash branco rápido (ref. SF2) antes de revelar o estágio.
+   scrollPxFrame fica entre 0.3 e 0.8 px/frame (convertido p/ px/s no update).
+   =========================================================================== */
+const VS_TIMING = {
+  entrada: 0.5,
+  confronto: 1.5,
+  round: 1.2,
+  flash: 0.05,
+  scrollPxFrame: 0.6,
 };
 
 /* ===========================================================================
@@ -1937,11 +2159,13 @@ const CONFIGS = [
 ];
 
 class Jogo {
-  constructor(canvas, recursos) {
+  constructor(canvas, recursos, catalogo) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.recursos = recursos;
+    this.catalogo = catalogo || { mapas: [] }; // (1) dados de mapas
     this.entrada = new Entrada();
+    this.gamepad = new GamepadNav(); // navegação por controle nos menus
     this.particulas = new Particulas();
     this.audio = new AudioFX();
     this.musica = new MusicaFX();
@@ -1981,6 +2205,11 @@ class Jogo {
 
     this.p1 = null;
     this.p2 = null;
+
+    // Seleção de mapa / VS Screen (NOVO).
+    this.selecaoMapa = null; // instância de SelecaoMapa enquanto em TELAS.MAPA
+    this.mapaEscolhido = null; // descritor do mapa confirmado
+    this.vs = null; // estado da VS Screen enquanto em TELAS.VS
 
     window.addEventListener("keydown", (e) => {
       if (e.code === "F1") {
@@ -2056,8 +2285,48 @@ class Jogo {
     this.terminouPorKO = false;
   }
 
-  comecarPartida() {
-    this._criarLutadores();
+  /* ---- FLUXO: Seleção de mapa → VS Screen → Início do round (sem desvios) ----
+     Após confirmar os PERSONAGENS, a tela SELECT chama _irParaSelecaoMapa(). */
+
+  // Entra na seleção de estágio. Se nenhum mapa foi descoberto, pula direto para
+  // a VS (a luta usará o cenário procedural de fallback).
+  _irParaSelecaoMapa() {
+    const mapas = this.catalogo ? this.catalogo.mapas : [];
+    if (!mapas.length) {
+      this.mapaEscolhido = null;
+      this._criarLutadores();
+      this._iniciarVS();
+      return;
+    }
+    this.selecaoMapa = new SelecaoMapa(mapas);
+    this.tela = TELAS.MAPA;
+  }
+
+  // Confirma o mapa: vira o estágio da luta e segue para a VS Screen.
+  _confirmarMapa(mapa) {
+    this.mapaEscolhido = mapa;
+    if (mapa && mapa.full) this.recursos.mapa = mapa.full; // estágio da LUTA
+    this._criarLutadores(); // criados aqui para a VS já mostrar HUD e sprites
+    this._iniciarVS();
+  }
+
+  // Inicializa o estado da VS Screen (posições em ESPAÇO DE TELA, fora da câmera).
+  _iniciarVS() {
+    this.tela = TELAS.VS;
+    this.roundAtual = 1; // a VS anuncia "ROUND 1"
+    this.vs = {
+      t: 0,
+      scroll: 0,
+      p1x: -260, // entra deslizando da borda esquerda
+      p2x: LARGURA + 260, // entra deslizando da borda direita
+      p1Alvo: LARGURA * 0.3, // para perto do centro-esquerda
+      p2Alvo: LARGURA * 0.7, // para perto do centro-direita
+    };
+    this.musica.tocar("vs"); // trilha própria da VS Screen
+  }
+
+  // Chamada ao final da VS: começa de fato a partida/round.
+  _comecarLutaAposVS() {
     this.roundsP1 = 0;
     this.roundsP2 = 0;
     this.roundAtual = 1;
@@ -2115,6 +2384,16 @@ class Jogo {
     }
     if (this.tela === TELAS.SELECT) {
       this._atualizarSelect();
+      this.entrada.limparPendentes();
+      return;
+    }
+    if (this.tela === TELAS.MAPA) {
+      this._atualizarMapa();
+      this.entrada.limparPendentes();
+      return;
+    }
+    if (this.tela === TELAS.VS) {
+      this._atualizarVS(dt);
       this.entrada.limparPendentes();
       return;
     }
@@ -2323,7 +2602,62 @@ class Jogo {
       this.confirmado.p2 = this.confirmado.p1;
     }
 
-    if (this.confirmado.p1 && this.confirmado.p2) this.comecarPartida();
+    // Personagens confirmados → seleção de ESTÁGIO (e depois a VS Screen).
+    if (this.confirmado.p1 && this.confirmado.p2) this._irParaSelecaoMapa();
+  }
+
+  // --- Tela MAPA: grade de estágios; navegação por teclado e gamepad (3) ---
+  _atualizarMapa() {
+    const sel = this.selecaoMapa;
+    if (!sel) return;
+    const gp = this.gamepad.ler();
+
+    // ESC / B volta para a seleção de personagem (re-escolher).
+    if (this.entrada.voltar || gp.back) {
+      this.somUI.tocar("voltar");
+      this.confirmado = { p1: false, p2: false };
+      this.tela = TELAS.SELECT;
+      return;
+    }
+
+    // Navegação com WRAP (teclado WASD/setas + D-pad/analógico do gamepad).
+    let moveu = false;
+    if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft") || gp.left)
+      moveu = sel.mover(-1, 0) || moveu;
+    if (this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight") || gp.right)
+      moveu = sel.mover(1, 0) || moveu;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp") || gp.up)
+      moveu = sel.mover(0, -1) || moveu;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown") || gp.down)
+      moveu = sel.mover(0, 1) || moveu;
+    if (moveu) this.somUI.tocar("navegar"); // sfx de mover cursor (sfx_cursor_move)
+
+    // Confirmar: ENTER/Espaço, A do gamepad ou o soco do P1 (F).
+    if (this.entrada.confirmar || gp.confirm || this.entrada.borda(TECLAS.p1.soco)) {
+      this.somUI.tocar("confirmar"); // sfx de confirmar (sfx_confirm)
+      this._confirmarMapa(sel.mapaAtual);
+    }
+  }
+
+  // --- Tela VS: linha do tempo cronometrada (ver VS_TIMING) ---
+  _atualizarVS(dt) {
+    const vs = this.vs;
+    if (!vs) return;
+    vs.t += dt;
+
+    // Scroll seamless do fundo: px/frame → px/s (referência de 60fps).
+    vs.scroll += VS_TIMING.scrollPxFrame * 60 * dt;
+
+    // FASE 0–0.5s: lutadores deslizam das bordas até o centro (ease-out cúbico).
+    const k = Math.min(1, vs.t / VS_TIMING.entrada);
+    const ease = 1 - Math.pow(1 - k, 3);
+    vs.p1x = -260 + (vs.p1Alvo + 260) * ease;
+    vs.p2x = LARGURA + 260 + (vs.p2Alvo - (LARGURA + 260)) * ease;
+
+    // Ao fim de TODA a linha do tempo, revela o estágio e começa o round.
+    const total =
+      VS_TIMING.entrada + VS_TIMING.confronto + VS_TIMING.round + VS_TIMING.flash;
+    if (vs.t >= total) this._comecarLutaAposVS();
   }
 
   // --- Tela CONFIG: ajusta configurações via CONFIGS[] ---
@@ -2608,6 +2942,15 @@ class Jogo {
     if (this.tela === TELAS.SELECT) {
       this._desenharCenario(ctx);
       this._desenharSelect(ctx);
+      return;
+    }
+    if (this.tela === TELAS.MAPA) {
+      this._desenharCenario(ctx);
+      this._desenharMapaSelect(ctx);
+      return;
+    }
+    if (this.tela === TELAS.VS) {
+      this._desenharVS(ctx);
       return;
     }
     if (this.tela === TELAS.CONFIG) {
@@ -3183,6 +3526,285 @@ class Jogo {
         : "A/D para trocar  •  ENTER/F confirma  •  ESC volta";
     ctx.fillText(dica, LARGURA / 2, 500);
   }
+
+  /* =========================================================================
+     SELEÇÃO DE MAPA + VS SCREEN — (2) MÓDULO DE UI / RENDERIZAÇÃO
+     Estética arcade CRT: paleta de 4 tons (fundo púrpura escuro, ciano, âmbar,
+     branco), bordas pixel (cantos marcados, sem border-radius), miniaturas em
+     letterbox e cursor piscante de alto contraste.
+     ========================================================================= */
+
+  // Linhas de varredura (scanlines) leves — textura "monitor CRT".
+  _scanlines(ctx) {
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = "#000";
+    for (let y = 0; y < ALTURA; y += 3) ctx.fillRect(0, y, LARGURA, 1);
+    ctx.restore();
+  }
+
+  // Desenha uma miniatura (canvas 16:9) dentro de um retângulo, com letterbox
+  // preto e pixels nítidos (sem suavização) — combina com a estética retrô.
+  _desenharThumb(ctx, thumb, x, y, w, h) {
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x, y, w, h);
+    if (!thumb) return;
+    const escala = Math.min(w / thumb.width, h / thumb.height);
+    const dw = thumb.width * escala;
+    const dh = thumb.height * escala;
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(thumb, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  }
+
+  // Cantos marcados estilo pixel-art (4 "Ls" nas quinas de um retângulo).
+  _cantosPixel(ctx, x, y, w, h, t, cor) {
+    ctx.fillStyle = cor;
+    const c = [
+      [x, y, t, t * 4],
+      [x, y, t * 4, t], // sup-esq
+      [x + w - t, y, t, t * 4],
+      [x + w - t * 4, y, t * 4, t], // sup-dir
+      [x, y + h - t * 4, t, t * 4],
+      [x, y + h - t, t * 4, t], // inf-esq
+      [x + w - t, y + h - t * 4, t, t * 4],
+      [x + w - t * 4, y + h - t, t * 4, t], // inf-dir
+    ];
+    for (const r of c) ctx.fillRect(r[0], r[1], r[2], r[3]);
+  }
+
+  // ---- Tela de SELEÇÃO DE MAPA ("SELECT STAGE") ----------------------------
+  _desenharMapaSelect(ctx) {
+    const sel = this.selecaoMapa;
+    const agora = performance.now();
+
+    // Título "SELECT STAGE" com brilho pulsante suave.
+    const pulso = 0.55 + 0.45 * Math.sin(agora / 350);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.shadowColor = "#5cd6ff";
+    ctx.shadowBlur = 26 * pulso;
+    ctx.fillStyle = "#ffd34d";
+    ctx.font = "bold 40px 'Segoe UI', monospace";
+    ctx.fillText("SELECT STAGE", LARGURA / 2, 66);
+    ctx.restore();
+
+    const mapas = sel.mapas;
+    const cols = sel.cols;
+    const linhas = sel.linhas;
+
+    // Área da grade e tamanho de célula que acomoda cols×linhas.
+    const areaX = 60;
+    const areaY = 96;
+    const areaW = LARGURA - 120;
+    const areaH = 372;
+    const gap = 18;
+    const cellW = (areaW - gap * (cols - 1)) / cols;
+    let cellH = (areaH - gap * (linhas - 1)) / linhas;
+    cellH = Math.min(cellH, cellW * 0.62 + 28); // não deixa a célula esticar demais
+    const tiraNome = 26; // faixa do nome embaixo da miniatura
+    const gridH = cellH * linhas + gap * (linhas - 1);
+    const startY = areaY + Math.max(0, (areaH - gridH) / 2);
+
+    for (let idx = 0; idx < mapas.length; idx++) {
+      const col = idx % cols;
+      const lin = Math.floor(idx / cols);
+      const x = areaX + col * (cellW + gap);
+      const y = startY + lin * (cellH + gap);
+      const m = mapas[idx];
+      const ehSel = idx === sel.indice;
+
+      // Miniatura (proporção preservada com letterbox).
+      const thumbH = cellH - tiraNome;
+      this._desenharThumb(ctx, m.thumb, x, y, cellW, thumbH);
+
+      // Faixa do nome (fonte arcade/maiúsculas).
+      ctx.fillStyle = ehSel ? "#ffd34d" : "#1a1430";
+      ctx.fillRect(x, y + thumbH, cellW, tiraNome);
+      ctx.fillStyle = ehSel ? "#1a1430" : "#cfc6e0";
+      ctx.font = "bold 13px 'Segoe UI', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(m.nome, x + cellW / 2, y + thumbH + 18);
+
+      // Borda pixel (cantos marcados, sem arredondamento).
+      ctx.strokeStyle = "#3a2f4f";
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 1.5, y + 1.5, cellW - 3, cellH - 3);
+      this._cantosPixel(ctx, x, y, cellW, cellH, 3, "#5a4a7a");
+
+      // CURSOR animado: borda piscante de alto contraste (ciano ↔ branco).
+      if (ehSel) {
+        const on = Math.floor(agora / 110) % 2 === 0;
+        ctx.strokeStyle = on ? "#5cd6ff" : "#ffffff";
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x - 3, y - 3, cellW + 6, cellH + 6);
+        this._cantosPixel(ctx, x - 3, y - 3, cellW + 6, cellH + 6, 4, on ? "#ffffff" : "#5cd6ff");
+      }
+    }
+
+    // Rodapé com instruções.
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "15px 'Segoe UI', monospace";
+    ctx.fillText(
+      "↑ ↓ ← → mover  •  ENTER / F confirma  •  ESC volta",
+      LARGURA / 2,
+      ALTURA - 18,
+    );
+
+    this._scanlines(ctx);
+  }
+
+  // ---- VS SCREEN -----------------------------------------------------------
+  // Fundo com scroll horizontal SEAMLESS (direita → esquerda). Estruturado como
+  // lista de camadas para suportar parallax: hoje há 1 camada (a imagem do mapa),
+  // mas camadas extras com velocidades diferentes entrariam aqui sem retrabalho.
+  _desenharScrollVS(ctx, scroll) {
+    const img = this.recursos && this.recursos.mapa;
+    if (!img || !img.width) {
+      // Sem imagem: cai no cenário procedural (cobrindo a tela toda).
+      this._desenharCenario(ctx);
+      return;
+    }
+    // Escala a imagem para COBRIR a altura da tela, preservando a proporção.
+    const escala = ALTURA / img.height;
+    const sw = img.width * escala; // largura de UMA cópia desenhada
+    let off = scroll % sw;
+    if (off < 0) off += sw;
+    ctx.imageSmoothingEnabled = false;
+    // Tile horizontal: desenha cópias lado a lado até cobrir a tela (loop perfeito).
+    for (let x = -off; x < LARGURA; x += sw) {
+      ctx.drawImage(img, x, 0, sw, ALTURA);
+    }
+  }
+
+  // Desenha um lutador (sprite idle) em ESPAÇO DE TELA, virado para o centro.
+  _desenharLutadorVS(ctx, pers, x, facing) {
+    const fr = this.recursos.frame(pers, "idle", 0);
+    const dw = this.recursos.frameW * ESCALA;
+    const dh = this.recursos.frameH * ESCALA;
+    const dx = x - dw / 2;
+    const dy = CHAO_Y - dh; // pés no chão
+
+    // Sombra simples sob os pés.
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    ctx.fillStyle = "#000";
+    ctx.beginPath();
+    ctx.ellipse(x, CHAO_Y, 72, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    if (facing === -1) {
+      ctx.translate(x, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-x, 0);
+    }
+    if (fr && fr.ok) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(fr.img, dx, dy, dw, dh);
+    }
+    ctx.restore();
+  }
+
+  // HUD da VS: barras de vida/especial, nomes e pips de round (antecipação).
+  _desenharHUDVS(ctx) {
+    const w = 360;
+    const h = 22;
+    const y = 24;
+    this._barraVida(ctx, 30, y, w, h, this.p1.hp, false);
+    this._barraVida(ctx, LARGURA - 30 - w, y, w, h, this.p2.hp, true);
+    this._barraEspecial(ctx, 30, y + h + 4, w, 8, this.p1.especial, false);
+    this._barraEspecial(ctx, LARGURA - 30 - w, y + h + 4, w, 8, this.p2.especial, true);
+    this._pipsRounds(ctx, 36, y + h + 24, this.roundsP1, false);
+    this._pipsRounds(ctx, LARGURA - 36, y + h + 24, this.roundsP2, true);
+  }
+
+  _desenharVS(ctx) {
+    const vs = this.vs;
+    if (!vs) return;
+    const T = VS_TIMING;
+    const total = T.entrada + T.confronto + T.round + T.flash;
+
+    // 1) FUNDO ANIMADO — scroll seamless do estágio escolhido.
+    this._desenharScrollVS(ctx, vs.scroll);
+    // Escurece levemente para destacar lutadores e o "VS".
+    ctx.fillStyle = "rgba(0,0,0,0.28)";
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    // 2) LUTADORES deslizando das bordas (P1 esquerda, P2 direita), se encarando.
+    const persP1 = PERSONAGENS[this.escolha.p1];
+    const persP2 = PERSONAGENS[this.escolha.p2];
+    this._desenharLutadorVS(ctx, persP1, vs.p1x, 1);
+    this._desenharLutadorVS(ctx, persP2, vs.p2x, -1);
+
+    // Nomes abaixo de cada sprite (fonte arcade/maiúsculas).
+    ctx.textAlign = "center";
+    ctx.font = "bold 18px 'Segoe UI', monospace";
+    ctx.fillStyle = "#5cd6ff";
+    ctx.fillText(this.p1.nome.toUpperCase(), vs.p1x, ALTURA - 18);
+    ctx.fillText(
+      this.p2.nome.toUpperCase() + (this.modo === "1p" ? " (CPU)" : ""),
+      vs.p2x,
+      ALTURA - 18,
+    );
+
+    // 3) HUD topo (barras + pips) para criar antecipação.
+    this._desenharHUDVS(ctx);
+
+    // 4) ELEMENTO "VS" central com entrada dramática (escala + flash).
+    let escalaVS = 1;
+    let flashVS = 0;
+    if (vs.t < T.entrada) {
+      const k = vs.t / T.entrada; // 0→1 durante a entrada
+      escalaVS = 2.6 - 1.6 * (1 - Math.pow(1 - k, 2)); // grande → 1 (ease-out)
+      flashVS = 1 - k; // clarão que some
+    } else {
+      escalaVS = 1 + 0.06 * Math.sin(performance.now() / 170); // pulso sutil
+    }
+    ctx.save();
+    ctx.translate(LARGURA / 2, ALTURA / 2);
+    ctx.scale(escalaVS, escalaVS);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#1a0a14";
+    ctx.font = "900 120px 'Segoe UI', monospace";
+    ctx.strokeText("VS", 0, 0);
+    ctx.fillStyle = "#e03020";
+    ctx.fillText("VS", 0, 0);
+    if (flashVS > 0) {
+      ctx.globalAlpha = flashVS;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText("VS", 0, 0);
+    }
+    ctx.restore();
+    ctx.textBaseline = "alphabetic";
+
+    // 5) "ROUND N" com zoom-in a partir dos 2s (fim do confronto).
+    const inicioRound = T.entrada + T.confronto;
+    if (vs.t >= inicioRound) {
+      const tr = vs.t - inicioRound;
+      const k = Math.min(1, tr / 0.3); // zoom-in nos primeiros 0.3s
+      const escR = 3 - 2 * (1 - Math.pow(1 - k, 3)); // 3 → 1
+      ctx.save();
+      ctx.translate(LARGURA / 2, 150);
+      ctx.scale(escR, escR);
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#ffd34d";
+      ctx.font = "bold 46px 'Segoe UI', monospace";
+      ctx.fillText("ROUND " + this.roundAtual, 0, 0);
+      ctx.restore();
+    }
+
+    this._scanlines(ctx);
+
+    // 6) FLASH BRANCO final (ref. SF2): 2–3 frames antes de revelar o estágio.
+    if (vs.t >= total - T.flash) {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+  }
 }
 
 /* ===========================================================================
@@ -3215,7 +3837,12 @@ async function iniciar() {
     );
   }
 
-  const jogo = new Jogo(canvas, recursos);
+  // (1) DADOS DE MAPAS: varre assets/mapas/ e monta o catálogo em runtime.
+  const catalogo = new CatalogoMapas(manifest);
+  await catalogo.descobrir();
+  console.info(`Mapas descobertos: ${catalogo.mapas.length}`);
+
+  const jogo = new Jogo(canvas, recursos, catalogo);
   jogo.rodar();
 }
 

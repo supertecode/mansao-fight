@@ -1,6 +1,11 @@
 {
   "frameSize": [256, 256],
-  "mapa": "arena3.png",
+  "mapa": "arena1.png",
+  "mapas": [
+    { "arquivo": "arena1.png", "nome": "UTFPR" },
+    { "arquivo": "arena2.png", "nome": "MANSÃO BROXA" },
+    { "arquivo": "arena3.png", "nome": "ARENA DO JOIA" }
+  ],
   "players": {
     "p1": {
       "nome": "Samuel Silva",
