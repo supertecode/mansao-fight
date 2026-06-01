@@ -124,6 +124,18 @@
           "cancelavel": true,
           "tipo_altura": "alto"
         },
+        "soco_baixo": {
+          "startup": 3,
+          "ativo": 2,
+          "recovery": 9,
+          "dano": 5,
+          "knockback": 100,
+          "derruba": false,
+          "alcance": [16, 96],
+          "altura": [-64, 0],
+          "cancelavel": true,
+          "tipo_altura": "baixo"
+        },
         "kick": {
           "startup": 7,
           "ativo": 4,
@@ -176,7 +188,7 @@
       }
     },
     "p2": {
-      "nome": "Vitor De Sordi",
+      "nome": "Vítor De Sordi",
       "animacoes": {
         "idle": {
           "frames": 1,
@@ -264,6 +276,12 @@
           "fps": 6,
           "loop": false
         },
+        "soco_baixo": {
+          "frames": 2,
+          "fps": 10,
+          "loop": false,
+          "framesAtivos": [1]
+        },
         "special": {
           "frames": 1,
           "fps": 10,
@@ -295,6 +313,18 @@
           "altura": [-178, -120],
           "cancelavel": true,
           "tipo_altura": "alto"
+        },
+        "soco_baixo": {
+          "startup": 3,
+          "ativo": 2,
+          "recovery": 9,
+          "dano": 5,
+          "knockback": 100,
+          "derruba": false,
+          "alcance": [16, 96],
+          "altura": [-64, 0],
+          "cancelavel": true,
+          "tipo_altura": "baixo"
         },
         "kick": {
           "startup": 7,
@@ -348,7 +378,7 @@
       }
     },
     "p3": {
-      "nome": "Erick",
+      "nome": "Erick Barbosa",
       "animacoes": {
         "idle": {
           "frames": 2,

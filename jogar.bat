@@ -20,7 +20,7 @@ if %errorlevel% == 0 (
     echo Deixe esta janela ABERTA enquanto joga.
     echo Para parar o servidor, FECHE esta janela.
     echo.
-    python -m http.server 8000
+    python serve.py
     goto :fim
 )
 
@@ -32,7 +32,7 @@ if %errorlevel% == 0 (
     echo Deixe esta janela ABERTA enquanto joga.
     echo Para parar o servidor, FECHE esta janela.
     echo.
-    py -m http.server 8000
+    py serve.py
     goto :fim
 )
 
@@ -57,7 +57,7 @@ echo Deixe esta janela ABERTA enquanto joga.
 echo Para parar o servidor, FECHE esta janela.
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$listener = New-Object System.Net.HttpListener; $listener.Prefixes.Add('http://localhost:8000/'); $listener.Start(); Write-Host 'Servidor rodando em http://localhost:8000/'; while ($listener.IsListening) { $ctx = $listener.GetContext(); $req = $ctx.Request; $res = $ctx.Response; $path = $req.Url.LocalPath.TrimStart('/'); if ($path -eq '' -or $path -eq '/') { $path = 'index.html' }; $file = Join-Path (Get-Location) $path; if (Test-Path $file -PathType Leaf) { $bytes = [System.IO.File]::ReadAllBytes($file); $res.ContentLength64 = $bytes.Length; $ext = [System.IO.Path]::GetExtension($file); $mime = @{'.html'='text/html';'.js'='application/javascript';'.css'='text/css';'.png'='image/png';'.jpg'='image/jpeg';'.gif'='image/gif';'.wav'='audio/wav';'.mp3'='audio/mpeg';'.json'='application/json'}.Item($ext); if ($mime) { $res.ContentType = $mime }; $res.OutputStream.Write($bytes, 0, $bytes.Length) } else { $res.StatusCode = 404 }; $res.OutputStream.Close() }"
+  "$listener = New-Object System.Net.HttpListener; $listener.Prefixes.Add('http://localhost:8000/'); $listener.Start(); Write-Host 'Servidor rodando em http://localhost:8000/'; while ($listener.IsListening) { $ctx = $listener.GetContext(); $req = $ctx.Request; $res = $ctx.Response; $res.Headers.Add('Cache-Control','no-store, no-cache, must-revalidate, max-age=0'); $path = $req.Url.LocalPath.TrimStart('/'); if ($path -eq '' -or $path -eq '/') { $path = 'index.html' }; $file = Join-Path (Get-Location) $path; if (Test-Path $file -PathType Leaf) { $bytes = [System.IO.File]::ReadAllBytes($file); $res.ContentLength64 = $bytes.Length; $ext = [System.IO.Path]::GetExtension($file); $mime = @{'.html'='text/html';'.js'='application/javascript';'.css'='text/css';'.png'='image/png';'.jpg'='image/jpeg';'.gif'='image/gif';'.wav'='audio/wav';'.mp3'='audio/mpeg';'.json'='application/json'}.Item($ext); if ($mime) { $res.ContentType = $mime }; $res.OutputStream.Write($bytes, 0, $bytes.Length) } else { $res.StatusCode = 404 }; $res.OutputStream.Close() }"
 if %errorlevel% neq 0 goto :erro
 goto :fim
 

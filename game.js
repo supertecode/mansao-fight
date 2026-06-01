@@ -101,6 +101,28 @@ const CONFIG = {
       cancelavel: true,
       tipo_altura: "alto",
     },
+    // SOCO BAIXO (jab agachado): golpe rápido e curto que mira o quadrante
+    // INFERIOR do oponente (mesma faixa de altura do kick_mid). Por ser
+    // "baixo", só é defendido com DEFESA_BAIXA (agachado + defender) e passa
+    // por baixo de quem só pode ser atingido em região alta — então NÃO acerta
+    // alvos cuja única hurtbox válida é a alta. Cancelável: encadeia em combos.
+    // Disparado com AGACHAR + SOCO (mesma convenção do kick_mid via AGACHAR+CHUTE).
+    // Todos os campos abaixo são configuráveis (e sobreponíveis por personagem
+    // no manifest.json, bloco "golpes"). Para dar animação própria ao golpe,
+    // adicione os sprites assets/<p>/soco_baixo_*.png e uma entrada
+    // "animacoes.soco_baixo" no manifest; sem isso ele reutiliza o sprite "punch".
+    soco_baixo: {
+      startup: 3, // sai rápido (poke)
+      ativo: 2,
+      recovery: 9,
+      dano: 5, // dano baixo: é um poke de pressão
+      knockback: 100,
+      derruba: false,
+      alcance: [16, 96], // curto
+      altura: [-64, 0], // rente ao chão (pernas/pés) — igual ao kick_mid
+      cancelavel: true,
+      tipo_altura: "baixo",
+    },
     kick: {
       startup: 7,
       ativo: 4,
@@ -186,6 +208,18 @@ const CONFIG = {
     pushbackPorHit: 0.35,
     // Milissegundos sem levar dano para zerar o contador de hits do defensor.
     comboResetMs: 1200,
+  },
+
+  // --- Throw Tech (defesa de agarrão) --------------------------------------
+  // Quando os DOIS lutadores estão agarrando ao mesmo tempo e os inícios dos
+  // agarrões ocorrem dentro de "janelaMs" um do outro, o agarrão é "techado":
+  // ninguém toma dano nem é arremessado; ambos entram em THROW_TECH e voltam ao
+  // neutro após "duracaoMs". Ajuste a dificuldade da defesa mudando janelaMs.
+  throwTech: {
+    janelaMs: 280, // janela (ms) entre os dois agarrões para haver tech
+    duracaoMs: 420, // duração (ms) da animação de tech antes de voltar ao neutro
+    empurrao: 150, // recuo (px/s) simétrico aplicado aos dois ao separar
+    alcance: 130, // distância máx. (px, centro a centro) para o clash valer
   },
 
   // --- Game feel (juice) ----------------------------------------------------
@@ -342,6 +376,10 @@ const ESTADOS = {
   KO: "ko",
   VICTORY: "victory",
   TAUNT: "taunt",
+  // Defesa de agarrão: ambos cancelam o agarrão simultâneo e ficam presos
+  // brevemente nesta pose antes de voltar ao neutro. NÃO é estado livre (input
+  // não o sobrescreve) NEM estado de golpe (sem hitbox/janela de cancelamento).
+  THROW_TECH: "throw_tech",
 };
 
 // Estados "livres": a cada quadro são re-derivados a partir do input.
@@ -470,6 +508,13 @@ class Recursos {
   }
   tem(player, anim) {
     return !!(this.dados[player] && this.dados[player][anim]);
+  }
+  // Como tem(), mas exige que o 1º quadro tenha REALMENTE carregado (arquivo
+  // presente). Útil para golpes opcionais (ex.: soco_baixo): se o sprite não
+  // existir, o chamador cai num fallback em vez de desenhar um placeholder.
+  temSprite(player, anim) {
+    const reg = this.dados[player] && this.dados[player][anim];
+    return !!(reg && reg.frames[0] && reg.frames[0].ok);
   }
   meta(player, anim) {
     return this.tem(player, anim) ? this.dados[player][anim].meta : null;
@@ -805,6 +850,7 @@ class ControleIA {
     this.fila = []; // ações de borda a emitir
     this.plano = "esperar"; // aproximar | recuar | defender | esperar
     this.t = 0; // contagem regressiva até a próxima decisão
+    this.queroBaixo = false; // intenção de soltar um soco baixo (agacha + soco)
   }
 
   // Recalcula intenções todo frame; decide um novo "plano" em intervalos.
@@ -844,12 +890,24 @@ class ControleIA {
     else if (this.plano === "recuar")
       this.segura.add(dirOp === "direita" ? "esquerda" : "direita");
     else if (this.plano === "defender") this.segura.add("defende");
+
+    // (d) Mixup baixo: agacha e, assim que estiver agachado, solta o soco baixo
+    // (AGACHAR+SOCO). Espalhar por 2 frames garante que estado==CROUCH ao atacar.
+    if (this.queroBaixo) {
+      this.segura.add("agacha");
+      if (f.estado === ESTADOS.CROUCH) {
+        this.fila.push("soco");
+        this.queroBaixo = false;
+      }
+    }
   }
 
   _decidir(f, op, ad, dirOp) {
     const c = this.cfg;
     const opAtacando = ESTADOS_GOLPE.has(op.estado);
     const barraCheia = f.especial >= CONFIG.especial.custo;
+    // Reavalia o mixup baixo a cada decisão (não fica agachado indefinidamente).
+    this.queroBaixo = false;
 
     // Defender se o oponente ataca de perto (reação).
     if (
@@ -867,7 +925,8 @@ class ControleIA {
         const r = Math.random();
         if (barraCheia && r < 0.18) this.fila.push("especial");
         else if (r < 0.32) this.fila.push("agarra");
-        else if (r < 0.68) this.fila.push("soco");
+        else if (r < 0.5) this.queroBaixo = true; // soco baixo (mixup)
+        else if (r < 0.74) this.fila.push("soco");
         else this.fila.push("chute");
         this.plano = "aproximar";
       } else {
@@ -1503,10 +1562,18 @@ class Fighter {
         return fb("taunt", "idle");
       case ESTADOS.TAUNT:
         return fb("taunt", "idle");
-      case ESTADOS.PUNCH:
-        return this.golpeAtual || "punch";
+      case ESTADOS.PUNCH: {
+        // Variantes do soco (punch_step, soco_baixo, ...) usam o sprite de
+        // mesmo nome se existir; senão reaproveitam "punch". Assim um golpe
+        // novo funciona pela FRAME DATA mesmo antes de ganhar arte própria.
+        const g = this.golpeAtual || "punch";
+        return r.temSprite(this.personagem, g) ? g : "punch";
+      }
       case ESTADOS.KICK:
         return this.golpeAtual || "kick";
+      case ESTADOS.THROW_TECH:
+        // Sem arte própria de tech: cai para uma pose de recuo/guarda existente.
+        return fb("throw_tech", fb("tech", fb("block", "hit")));
       case ESTADOS.FIREBALL:
         return this.golpeAtual || "fireball";
       case ESTADOS.GRAB:
@@ -1527,11 +1594,17 @@ class Fighter {
   }
 
   // ---- Ações ----------------------------------------------------------------
-  iniciarSoco(movendo) {
-    let anim = "punch";
-    if (movendo && this.recursos.tem(this.personagem, "punch_step"))
-      anim = "punch_step";
-    this.irPara(ESTADOS.PUNCH, true, anim);
+  // movendo  = andando/correndo (usa o passo "punch_step").
+  // agachado = em postura baixa (AGACHAR+SOCO) -> dispara o SOCO BAIXO.
+  // O nome escolhido vira o golpeAtual: tanto a FRAME DATA (this.golpes[nome])
+  // quanto a animação saem dele, então um novo golpe baixo é só uma entrada
+  // a mais em CONFIG.golpes/manifest — sem tocar nesta função.
+  iniciarSoco(movendo, agachado) {
+    let golpe = "punch";
+    if (agachado && this.golpes["soco_baixo"]) golpe = "soco_baixo";
+    else if (movendo && this.recursos.tem(this.personagem, "punch_step"))
+      golpe = "punch_step";
+    this.irPara(ESTADOS.PUNCH, true, golpe);
   }
 
   iniciarChute(agachado, noAr) {
@@ -1561,6 +1634,18 @@ class Fighter {
   iniciarAgarra() {
     this.irPara(ESTADOS.GRAB, true, "agarra");
     this.jogo.audio.chute();
+  }
+
+  // THROW TECH: agarrão cancelado por agarrão simultâneo do oponente. Nenhum
+  // dano, nenhum arremesso — só um recuo simétrico e a pose de tech. Volta ao
+  // neutro sozinho via _transicoes (estado THROW_TECH não é livre nem de golpe).
+  techThrow(origemX) {
+    this.irPara(ESTADOS.THROW_TECH, true);
+    const dir = this.x <= origemX ? -1 : 1; // afasta-se de quem estava à frente
+    this.vx = dir * CONFIG.throwTech.empurrao;
+    // O tech "quebra" qualquer combo em andamento dos dois lados.
+    this.comboRecebido = 0;
+    this.comboResetTimer = 0;
   }
 
   // NOVO: especial (gasta a barra cheia; lança o super-projétil na pose "special").
@@ -1724,7 +1809,9 @@ class Fighter {
       }
       if (acoes.includes("soco")) {
         this.comboContador++;
-        this.iniciarSoco(false);
+        // Cancelamento em combo parte sempre de uma pose de ataque (em pé):
+        // não há agachamento aqui, então soco alto padrão.
+        this.iniciarSoco(false, false);
         this.jogo.audio.soco();
         return;
       }
@@ -1769,7 +1856,8 @@ class Fighter {
       }
       if (acoes.includes("soco")) {
         this.comboContador = 1;
-        this.iniciarSoco(querEsq || querDir);
+        // AGACHAR+SOCO = soco baixo (mesma convenção do AGACHAR+CHUTE = kick_mid).
+        this.iniciarSoco(querEsq || querDir, agachado);
         this.jogo.audio.soco();
         return;
       }
@@ -1918,6 +2006,12 @@ class Fighter {
         break;
       case ESTADOS.TAUNT:
         if (this.anim.terminou) this.irPara(ESTADOS.IDLE, true);
+        break;
+      case ESTADOS.THROW_TECH:
+        // Trava na pose pela duração configurada (a pose de fallback costuma ter
+        // 1 quadro e "terminar" no ato), depois volta ao neutro.
+        if (this.estadoTempo >= CONFIG.throwTech.duracaoMs / 1000)
+          this.irPara(ESTADOS.IDLE, true);
         break;
     }
   }
@@ -2224,11 +2318,18 @@ class Jogo {
     // Game feel global.
     this.hitStop = 0; // tempo congelado restante (s)
     this.shake = 0; // intensidade atual do tremor
+    this.textoTech = null; // rótulo "TECH!" temporário ao defender agarrão
     this.cameraX = 0; // deslocamento horizontal da câmera no mundo (px)
     this.menuIndex = 0; // navegação da tela MODO
     this.dificuldadeIndex = 0; // navegação da tela DIFICULDADE
     this.configIndex = 0; // navegação da tela CONFIG
     this.telaAnteriorConfig = TELAS.MODO; // para onde ESC leva ao sair das configs
+
+    // Pause da luta (overlay sobre a partida congelada).
+    this.pausado = false;
+    this.pauseModo = "menu"; // "menu" | "confirmarSair"
+    this.pauseIndex = 0; // item do menu de pause
+    this.pauseConfirmIndex = 1; // 0 = Sim, 1 = Não (começa em Não)
 
     this.p1 = null;
     this.p2 = null;
@@ -2284,6 +2385,9 @@ class Jogo {
     this.particulas.limpar();
     this.hitStop = 0;
     this.shake = 0;
+    this.textoTech = null;
+    this.pausado = false;
+    this.pauseModo = "menu";
     this.p1.x = MUNDO_L / 2 - 172;
     this.p1.y = CHAO_Y;
     this.p1.vx = 0;
@@ -2445,6 +2549,23 @@ class Jogo {
     }
 
     // ----- Tela de LUTA -----
+    // Pause: enquanto pausado, a luta fica congelada e só o menu responde.
+    if (this.pausado) {
+      this._atualizarPause();
+      this.entrada.limparPendentes();
+      return;
+    }
+    // ESC abre o menu de pause (exceto na transição de fim de round).
+    if (this.entrada.voltar && this.faseRound !== "fim") {
+      this.pausado = true;
+      this.pauseModo = "menu";
+      this.pauseIndex = 0;
+      this.somUI.tocar("navegar");
+      this.entrada.voltar = false;
+      this.entrada.limparPendentes();
+      return;
+    }
+
     this._atualizarShake(dt);
     this._atualizarCamera(dt);
     this.timerFase += dt;
@@ -2478,9 +2599,13 @@ class Jogo {
       this.p1.atualizar(dt, true);
       this.p2.atualizar(dt, true);
       this._resolverColisaoCorpos();
+      // Throw tech ANTES de resolver golpes: se ambos estão agarrando, o agarrão
+      // é cancelado antes que qualquer um aplique dano/arremesso.
+      this._resolverThrowTech();
       this._resolverGolpes();
       this._atualizarProjeteis(dt);
       this.particulas.atualizar(dt);
+      if (this.textoTech && this.textoTech.t > 0) this.textoTech.t -= dt;
 
       if (this.p1.hp <= 0) this._encerrarRound("p2", true);
       else if (this.p2.hp <= 0) this._encerrarRound("p1", true);
@@ -2738,6 +2863,89 @@ class Jogo {
     }
   }
 
+  // --- Menu de PAUSE: Continuar / Configurações / Sair para o menu ---
+  _atualizarPause() {
+    if (this.pauseModo === "confirmarSair") {
+      this._atualizarPauseConfirmar();
+      return;
+    }
+
+    const opcoes = 3; // 0 Continuar, 1 Configurações, 2 Sair
+    const ant = this.pauseIndex;
+    if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp"))
+      this.pauseIndex = (this.pauseIndex + opcoes - 1) % opcoes;
+    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown"))
+      this.pauseIndex = (this.pauseIndex + 1) % opcoes;
+    if (this.pauseIndex !== ant) this.somUI.tocar("navegar");
+
+    // ESC retoma a luta.
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.pausado = false;
+      return;
+    }
+
+    if (this.entrada.confirmar) {
+      if (this.pauseIndex === 0) {
+        // Continuar.
+        this.somUI.tocar("voltar");
+        this.pausado = false;
+      } else if (this.pauseIndex === 1) {
+        // Configurações: reaproveita a tela CONFIG; ao sair dela (ESC) volta
+        // para a LUTA, que continua pausada e reabre este menu.
+        this.somUI.tocar("confirmar");
+        this.telaAnteriorConfig = TELAS.LUTA;
+        this.configIndex = 0;
+        this.tela = TELAS.CONFIG;
+      } else {
+        // Sair para o menu: pede confirmação antes.
+        this.somUI.tocar("confirmar");
+        this.pauseModo = "confirmarSair";
+        this.pauseConfirmIndex = 1; // padrão seguro: "Não"
+      }
+    }
+  }
+
+  // --- Confirmação "Sair da partida?" (Sim / Não) ---
+  _atualizarPauseConfirmar() {
+    const ant = this.pauseConfirmIndex;
+    if (
+      this.entrada.borda("KeyA") ||
+      this.entrada.borda("ArrowLeft") ||
+      this.entrada.borda("KeyD") ||
+      this.entrada.borda("ArrowRight")
+    ) {
+      this.pauseConfirmIndex = this.pauseConfirmIndex === 0 ? 1 : 0;
+    }
+    if (this.pauseConfirmIndex !== ant) this.somUI.tocar("navegar");
+
+    // ESC cancela e volta ao menu de pause.
+    if (this.entrada.voltar) {
+      this.somUI.tocar("voltar");
+      this.pauseModo = "menu";
+      return;
+    }
+
+    if (this.entrada.confirmar) {
+      if (this.pauseConfirmIndex === 0) {
+        this._sairParaMenu(); // Sim
+      } else {
+        this.somUI.tocar("voltar"); // Não
+        this.pauseModo = "menu";
+      }
+    }
+  }
+
+  // Encerra a partida e retorna ao menu principal.
+  _sairParaMenu() {
+    this.somUI.tocar("confirmar");
+    this.pausado = false;
+    this.pauseModo = "menu";
+    this.musica.tocar("menu");
+    this.tela = TELAS.MODO;
+    this.menuIndex = 0;
+  }
+
   // --- Screen shake: decai com o tempo ---
   _atualizarShake(dt) {
     if (this.shake > 0) {
@@ -2792,6 +3000,38 @@ class Jogo {
       this.p1.x += metade;
       this.p2.x -= metade;
     }
+  }
+
+  /* THROW TECH — defesa de agarrão (vale para os dois lados ao mesmo tempo).
+     Dispara quando AMBOS estão no estado GRAB, perto o bastante e com os inícios
+     dos agarrões dentro de CONFIG.throwTech.janelaMs um do outro. Resultado:
+     ninguém toma dano nem é arremessado; os dois entram em THROW_TECH e voltam
+     ao neutro. Roda ANTES de _resolverGolpes, então cancela o agarrão antes que
+     ele aplique qualquer efeito. Não toca em combos/bloqueios/outros estados. */
+  _resolverThrowTech() {
+    const a = this.p1;
+    const b = this.p2;
+    // Só há clash se os dois estiverem efetivamente agarrando.
+    if (a.estado !== ESTADOS.GRAB || b.estado !== ESTADOS.GRAB) return false;
+    // Os agarrões precisam ter começado dentro da janela um do outro.
+    const janela = CONFIG.throwTech.janelaMs / 1000;
+    if (Math.abs(a.estadoTempo - b.estadoTempo) > janela) return false;
+    // E estar no alcance de agarrão (evita tech "à distância" por coincidência).
+    if (Math.abs(a.x - b.x) > CONFIG.throwTech.alcance) return false;
+
+    // Clash! Cancela os dois agarrões simultaneamente.
+    a.techThrow(b.x);
+    b.techThrow(a.x);
+
+    // Feedback de "tech break": faíscas no ponto médio, som e um tremor leve.
+    const mx = (a.x + b.x) / 2;
+    const my = CHAO_Y - 110;
+    this.particulas.faiscas(mx, my, CONFIG.particulas.faiscasBloqueio + 4, "#ffe9a8", 200);
+    this.audio.bloqueio();
+    this.hitStop = Math.max(this.hitStop, 0.05);
+    this._tremor(CONFIG.gameFeel.shakeHit * 0.5);
+    this.textoTech = { t: 0.7, x: mx, y: my - 30 }; // rótulo "TECH!" temporário
+    return true;
   }
 
   _resolverGolpes() {
@@ -3013,12 +3253,29 @@ class Jogo {
     this.p2.desenhar(ctx, this.debug);
     for (const p of this.projeteis) p.desenhar(ctx);
     this.particulas.desenhar(ctx);
+    // Rótulo "TECH!" no ponto do clash de agarrão (sobe e some).
+    if (this.textoTech && this.textoTech.t > 0) {
+      const tt = this.textoTech;
+      const alpha = Math.min(1, tt.t / 0.4);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#ffe9a8";
+      ctx.strokeStyle = "rgba(0,0,0,0.6)";
+      ctx.lineWidth = 3;
+      ctx.font = "bold 28px 'Segoe UI', sans-serif";
+      ctx.textAlign = "center";
+      const y = tt.y - (0.7 - tt.t) * 40; // sobe conforme o tempo passa
+      ctx.strokeText("TECH!", tt.x, y);
+      ctx.fillText("TECH!", tt.x, y);
+      ctx.restore();
+    }
     ctx.restore();
 
     // HUD e textos centrais (fora do shake).
     this._desenharHUD(ctx);
     if (this.faseRound === "anuncio") this._desenharAnuncio(ctx);
     if (this.faseRound === "fim") this._desenharFimRound(ctx);
+    if (this.pausado) this._desenharPause(ctx);
   }
 
   _desenharCenario(ctx) {
@@ -3284,6 +3541,109 @@ class Jogo {
   }
 
   // ---- Tela de configurações -----------------------------------------------
+  // Overlay do menu de PAUSE sobre a luta congelada.
+  _desenharPause(ctx) {
+    // Escurece a cena.
+    ctx.fillStyle = "rgba(8,6,16,0.66)";
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    if (this.pauseModo === "confirmarSair") {
+      this._desenharPauseConfirmar(ctx);
+      return;
+    }
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffd34d";
+    ctx.font = "bold 52px 'Segoe UI', sans-serif";
+    ctx.fillText("PAUSA", LARGURA / 2, 150);
+
+    const opcoes = ["Continuar", "Configurações", "Sair para o Menu"];
+    const itemH = 64;
+    const startY = 250;
+    for (let i = 0; i < opcoes.length; i++) {
+      const sel = i === this.pauseIndex;
+      const cy = startY + i * itemH;
+      if (sel) {
+        ctx.fillStyle = "rgba(255,211,77,0.12)";
+        ctx.fillRect(LARGURA / 2 - 220, cy - 26, 440, 48);
+      }
+      ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
+      ctx.font = sel
+        ? "bold 30px 'Segoe UI', sans-serif"
+        : "26px 'Segoe UI', sans-serif";
+      ctx.fillText(sel ? `▸  ${opcoes[i]}  ◂` : opcoes[i], LARGURA / 2, cy + 6);
+    }
+
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "16px 'Segoe UI', sans-serif";
+    ctx.fillText(
+      "W/S ou ↑/↓ navega  •  ENTER confirma  •  ESC retoma",
+      LARGURA / 2,
+      478,
+    );
+  }
+
+  // Caixa de confirmação "Sair da partida?".
+  _desenharPauseConfirmar(ctx) {
+    const bw = 540,
+      bh = 230;
+    const bx = LARGURA / 2 - bw / 2;
+    const by = ALTURA / 2 - bh / 2;
+
+    ctx.fillStyle = "rgba(20,16,38,0.96)";
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = "#ffd34d";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 30px 'Segoe UI', sans-serif";
+    ctx.fillText("Sair da partida?", LARGURA / 2, by + 64);
+
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "18px 'Segoe UI', sans-serif";
+    ctx.fillText(
+      "O progresso da luta será perdido.",
+      LARGURA / 2,
+      by + 100,
+    );
+
+    const labels = ["Sim", "Não"];
+    const bwBtn = 160,
+      bhBtn = 52;
+    const gap = 40;
+    const totalW = bwBtn * 2 + gap;
+    const startX = LARGURA / 2 - totalW / 2;
+    const btnY = by + bh - 78;
+    for (let i = 0; i < 2; i++) {
+      const sel = i === this.pauseConfirmIndex;
+      const x = startX + i * (bwBtn + gap);
+      ctx.fillStyle = sel
+        ? i === 0
+          ? "rgba(224,48,32,0.30)"
+          : "rgba(54,210,58,0.22)"
+        : "rgba(255,255,255,0.05)";
+      ctx.fillRect(x, btnY, bwBtn, bhBtn);
+      ctx.strokeStyle = sel ? (i === 0 ? "#e03020" : "#36d23a") : "#5a5070";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, btnY, bwBtn, bhBtn);
+      ctx.fillStyle = sel ? "#ffffff" : "#cfc6e0";
+      ctx.font = sel
+        ? "bold 24px 'Segoe UI', sans-serif"
+        : "22px 'Segoe UI', sans-serif";
+      ctx.fillText(labels[i], x + bwBtn / 2, btnY + bhBtn / 2 + 8);
+    }
+
+    ctx.fillStyle = "#9b90b5";
+    ctx.font = "15px 'Segoe UI', sans-serif";
+    ctx.fillText(
+      "←/→ escolhe  •  ENTER confirma  •  ESC cancela",
+      LARGURA / 2,
+      by + bh + 28,
+    );
+  }
+
   _desenharConfig(ctx) {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffd34d";
