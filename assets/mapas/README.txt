@@ -23,7 +23,7 @@ Não estique a imagem manualmente — desenhe tudo na proporção natural em 192
 
 QUER UMA ARENA MAIOR/MENOR?
 ---------------------------
-Mude CONFIG.arena.larguraMundo em game.js e exporte o PNG com essa mesma
+Mude CONFIG.arena.larguraMundo em src/config.js e exporte o PNG com essa mesma
 largura (sempre múltiplo de 960 fica ideal). Ex.: 2880 = 3 telas de largura.
 
 PARALLAX (opcional, avançado)
