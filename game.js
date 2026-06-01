@@ -222,6 +222,25 @@ const CONFIG = {
     alcance: 130, // distância máx. (px, centro a centro) para o clash valer
   },
 
+  /* --- ESPECIAL DEFENSIVO: BACKDASH (esquiva para trás) --------------------
+     Segundo especial, focado em MOBILIDADE defensiva. Acionado por
+     ESPECIAL + TRÁS (direção relativa ao facing: olhando p/ direita, "trás" é
+     esquerda; olhando p/ esquerda, "trás" é direita). Recuo rápido e evasivo.
+     Exclusivo do SPRITE definido em "exclusivoPersonagem" (o personagem P2).
+     NÃO consome a barra de especial (é mobilidade, não o super-projétil), NÃO
+     causa dano e NÃO empurra o oponente — apenas afasta quem o executa.
+     Para dar ANIMAÇÃO PRÓPRIA: adicione assets/<p>/backdash_*.png e uma entrada
+     "animacoes.backdash" no manifest.json; sem isso, reaproveita a pose "run".
+     Todos os parâmetros abaixo são livremente configuráveis. */
+  backdash: {
+    exclusivoPersonagem: "p2", // só este PERSONAGEM (sprite) executa o dash
+    vel: 720, // px/s — bem acima de velAndar(200) e velCorrer(290): é evasivo
+    distancia: 190, // px percorridos antes de encerrar automaticamente
+    duracao: 0.26, // s — teto de tempo (encerra mesmo sem fechar a distância)
+    cooldownMs: 550, // ms entre dois dashes (0 = sem cooldown)
+    invulneravel: true, // i-frames durante o dash (esquiva de verdade)
+  },
+
   // --- Game feel (juice) ----------------------------------------------------
   gameFeel: {
     hitStopMs: 60, // congela base no impacto
@@ -380,6 +399,10 @@ const ESTADOS = {
   // brevemente nesta pose antes de voltar ao neutro. NÃO é estado livre (input
   // não o sobrescreve) NEM estado de golpe (sem hitbox/janela de cancelamento).
   THROW_TECH: "throw_tech",
+  // Especial defensivo do P2: recuo rápido evasivo (ESPECIAL + TRÁS). Como o
+  // THROW_TECH, é um estado TRAVADO: não é livre (o input não o interrompe) nem
+  // de golpe (sem hitbox). Volta ao neutro sozinho ao fim da distância/duração.
+  BACKDASH: "backdash",
 };
 
 // Estados "livres": a cada quadro são re-derivados a partir do input.
@@ -1440,6 +1463,10 @@ class Fighter {
     //                       Só essa postura bloqueia golpes "baixo".
     this.estaAgachado = false;
     this.estaDefendendoBaixo = false;
+
+    // --- Backdash defensivo (ESPECIAL + TRÁS, exclusivo do personagem P2) ---
+    this.backdashCooldown = 0; // s restantes até liberar outro dash (0 = pronto)
+    this.backdashDur = 0; // s — duração efetiva do dash em curso (distância/vel ∨ duracao)
   }
 
   // ---- Consultas ------------------------------------------------------------
@@ -1574,6 +1601,10 @@ class Fighter {
       case ESTADOS.THROW_TECH:
         // Sem arte própria de tech: cai para uma pose de recuo/guarda existente.
         return fb("throw_tech", fb("tech", fb("block", "hit")));
+      case ESTADOS.BACKDASH:
+        // Anim dedicada se existir (assets/<p>/backdash_*.png + manifest);
+        // senão reaproveita uma pose de movimento/recuo já presente no sprite.
+        return fb("backdash", fb("dash", fb("run", fb("block", "walk"))));
       case ESTADOS.FIREBALL:
         return this.golpeAtual || "fireball";
       case ESTADOS.GRAB:
@@ -1653,6 +1684,36 @@ class Fighter {
     this.especial = 0;
     this.irPara(ESTADOS.SPECIAL, true, "super"); // "super" = tipo de projétil
     this.jogo.audio.especial();
+  }
+
+  /* ESPECIAL DEFENSIVO (P2): dash rápido para TRÁS (esquiva). -------------------
+     "Trás" é relativo ao facing — o lutador sempre recua mantendo a orientação
+     (encarando o oponente), pois BACKDASH não é estado livre e o facing fica
+     congelado durante o movimento. Não gasta a barra de especial nem causa dano;
+     reutiliza this.invencivel (mesma flag do wakeup) para os i-frames. O dash é
+     dirigido por velocidade constante (sem atrito — ver _fisica) e encerra
+     sozinho ao percorrer a distância/duração configurada (ver _transicoes). */
+  iniciarBackdash() {
+    const cfg = CONFIG.backdash;
+    const tras = -this.facing; // oposto de para onde olha = recuo relativo
+    this.irPara(ESTADOS.BACKDASH, true);
+    this.vx = tras * cfg.vel;
+    this.backdashCooldown = cfg.cooldownMs / 1000;
+    // Encerra no que vier primeiro: fechar a distância OU estourar a duração.
+    this.backdashDur = Math.min(cfg.duracao, cfg.distancia / cfg.vel);
+    if (cfg.invulneravel)
+      this.invencivel = Math.max(this.invencivel, this.backdashDur);
+    this.jogo.audio.pulo(); // "whoosh" leve de esquiva (reaproveita o som de pulo)
+  }
+
+  // Pode iniciar o backdash? Exclusivo do personagem configurado, só no chão e
+  // com o cooldown zerado. Não depende da barra de especial (é mobilidade).
+  podeBackdash() {
+    return (
+      this.personagem === CONFIG.backdash.exclusivoPersonagem &&
+      this.noChao &&
+      this.backdashCooldown <= 0
+    );
   }
 
   ganharEspecial(qtd) {
@@ -1747,6 +1808,7 @@ class Fighter {
     if (this.flashTimer > 0) this.flashTimer -= dt;
     if (this.janelaCancel > 0) this.janelaCancel -= dt;
     if (this.invencivel > 0) this.invencivel -= dt;
+    if (this.backdashCooldown > 0) this.backdashCooldown -= dt;
     if (this.comboResetTimer > 0) {
       this.comboResetTimer -= dt;
       if (this.comboResetTimer <= 0) {
@@ -1840,6 +1902,24 @@ class Fighter {
       this.estaDefendendoBaixo = false;
 
       // Ações de borda (prioridade).
+      // ESPECIAL + TRÁS = backdash defensivo (P2). Checado ANTES do super: o
+      // mesmo botão "especial" vira dash QUANDO se está segurando a direção de
+      // recuo. Como é distinguido pela direção, não conflita com o super (sem
+      // direção) nem com o Fireball (que é outra tecla, "projetil"). Não custa
+      // barra, então independe de this.especial.
+      const segurandoTras =
+        (this.facing === 1 && querEsq) || (this.facing === -1 && querDir);
+      // Para o personagem do dash, ESPECIAL+TRÁS é RESERVADO ao backdash: se
+      // estiver em cooldown (ou no ar), o comando é absorvido sem virar super —
+      // assim o jogador nunca gasta a barra cheia por engano ao tentar esquivar.
+      const querBackdash =
+        acoes.includes("especial") &&
+        segurandoTras &&
+        this.personagem === CONFIG.backdash.exclusivoPersonagem;
+      if (querBackdash) {
+        if (this.podeBackdash()) this.iniciarBackdash();
+        return;
+      }
       if (
         acoes.includes("especial") &&
         this.especial >= CONFIG.especial.custo &&
@@ -1929,11 +2009,17 @@ class Fighter {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    if (this.estado !== ESTADOS.WALK && this.estado !== ESTADOS.JUMP) {
-      // No chão e fora do andar: desacelera rápido (empurrões, hit stun, etc.).
+    if (
+      this.estado !== ESTADOS.WALK &&
+      this.estado !== ESTADOS.JUMP &&
+      this.estado !== ESTADOS.BACKDASH
+    ) {
+      // No chão e fora do andar/dash: desacelera rápido (empurrões, hit stun…).
       this.vx *= Math.pow(0.0008, dt);
       if (Math.abs(this.vx) < 4) this.vx = 0;
     }
+    // BACKDASH: velocidade constante — o movimento é encerrado por _transicoes
+    // (distância/duração), não pelo atrito. Mantém o recuo nítido e previsível.
     // JUMP: sem atrito passivo — o input controla vx diretamente.
     // Momentum inicial (sem tecla pressionada) é preservado até o pouso.
 
@@ -2012,6 +2098,14 @@ class Fighter {
         // 1 quadro e "terminar" no ato), depois volta ao neutro.
         if (this.estadoTempo >= CONFIG.throwTech.duracaoMs / 1000)
           this.irPara(ESTADOS.IDLE, true);
+        break;
+      case ESTADOS.BACKDASH:
+        // Encerra o dash ao percorrer a distância/duração (o que vier primeiro,
+        // já resolvido em backdashDur) e retorna ao neutro, zerando o impulso.
+        if (this.estadoTempo >= this.backdashDur) {
+          this.vx = 0;
+          this.irPara(ESTADOS.IDLE, true);
+        }
         break;
     }
   }
