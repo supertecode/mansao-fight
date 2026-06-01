@@ -2051,27 +2051,44 @@ const TELAS = {
 class SelecaoMapa {
   constructor(mapas) {
     this.mapas = mapas;
+    // Células da grade = mapas reais + uma célula extra "ALEATÓRIO" no fim
+    // (estilo arcade "?" / RANDOM). Só aparece se houver mapas para sortear.
+    this.celulas = mapas.length
+      ? [...mapas, { aleatorio: true, nome: "ALEATÓRIO" }]
+      : [...mapas];
     this.indice = 0;
     this._calcularGrade();
   }
 
-  // Grade responsiva: acomoda a quantidade encontrada (ex.: 3→3×1, 6→3×2,
+  // Grade responsiva: acomoda a quantidade de células (ex.: 4→4×1, 6→3×2,
   // 12→4×3). Até 4 por linha em quantidades pequenas; acima, formato quadrado.
   _calcularGrade() {
-    const n = Math.max(1, this.mapas.length);
+    const n = Math.max(1, this.celulas.length);
     let cols = Math.min(4, n);
     if (n > 4) cols = Math.min(5, Math.ceil(Math.sqrt(n)));
     this.cols = cols;
     this.linhas = Math.ceil(n / cols);
   }
 
-  get mapaAtual() {
-    return this.mapas[this.indice] || null;
+  // Célula sob o cursor (pode ser um mapa ou a célula "ALEATÓRIO").
+  get atual() {
+    return this.celulas[this.indice] || null;
+  }
+
+  // Resolve a escolha: se for "ALEATÓRIO", sorteia um mapa real; senão devolve
+  // o próprio mapa. Retorna null só se não houver mapa algum.
+  resolverEscolha() {
+    const c = this.atual;
+    if (c && c.aleatorio) {
+      if (!this.mapas.length) return null;
+      return this.mapas[Math.floor(Math.random() * this.mapas.length)];
+    }
+    return c;
   }
 
   // Move o cursor com WRAP nas bordas. dx/dy ∈ {-1,0,1}. Retorna se mudou.
   mover(dx, dy) {
-    const n = this.mapas.length;
+    const n = this.celulas.length;
     if (n === 0) return false;
     const anterior = this.indice;
 
@@ -2635,7 +2652,8 @@ class Jogo {
     // Confirmar: ENTER/Espaço, A do gamepad ou o soco do P1 (F).
     if (this.entrada.confirmar || gp.confirm || this.entrada.borda(TECLAS.p1.soco)) {
       this.somUI.tocar("confirmar"); // sfx de confirmar (sfx_confirm)
-      this._confirmarMapa(sel.mapaAtual);
+      // resolverEscolha() sorteia um mapa real quando o cursor está em "ALEATÓRIO".
+      this._confirmarMapa(sel.resolverEscolha());
     }
   }
 
@@ -3580,6 +3598,27 @@ class Jogo {
     for (const r of c) ctx.fillRect(r[0], r[1], r[2], r[3]);
   }
 
+  // Desenha o miolo da célula "ALEATÓRIO": fundo escuro + "?" grande pulsante.
+  _desenharCelulaAleatoria(ctx, x, y, w, h, agora) {
+    const g = ctx.createLinearGradient(x, y, x, y + h);
+    g.addColorStop(0, "#241a3a");
+    g.addColorStop(1, "#0c0a18");
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+
+    const pulso = 0.6 + 0.4 * Math.sin(agora / 280);
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "#5cd6ff";
+    ctx.shadowBlur = 22 * pulso;
+    ctx.fillStyle = "#ffd34d";
+    ctx.font = `900 ${Math.floor(h * 0.6)}px 'Segoe UI', monospace`;
+    ctx.fillText("?", x + w / 2, y + h / 2);
+    ctx.restore();
+    ctx.textBaseline = "alphabetic";
+  }
+
   // ---- Tela de SELEÇÃO DE MAPA ("SELECT STAGE") ----------------------------
   _desenharMapaSelect(ctx) {
     const sel = this.selecaoMapa;
@@ -3596,7 +3635,7 @@ class Jogo {
     ctx.fillText("SELECT STAGE", LARGURA / 2, 66);
     ctx.restore();
 
-    const mapas = sel.mapas;
+    const celulas = sel.celulas; // mapas + célula "ALEATÓRIO"
     const cols = sel.cols;
     const linhas = sel.linhas;
 
@@ -3613,17 +3652,22 @@ class Jogo {
     const gridH = cellH * linhas + gap * (linhas - 1);
     const startY = areaY + Math.max(0, (areaH - gridH) / 2);
 
-    for (let idx = 0; idx < mapas.length; idx++) {
+    for (let idx = 0; idx < celulas.length; idx++) {
       const col = idx % cols;
       const lin = Math.floor(idx / cols);
       const x = areaX + col * (cellW + gap);
       const y = startY + lin * (cellH + gap);
-      const m = mapas[idx];
+      const m = celulas[idx];
       const ehSel = idx === sel.indice;
-
-      // Miniatura preenchendo a célula (cover, recortando o excedente).
       const thumbH = cellH - tiraNome;
-      this._desenharThumb(ctx, m.full, x, y, cellW, thumbH);
+
+      if (m.aleatorio) {
+        // Célula "ALEATÓRIO": tile escuro com um "?" grande pulsante (estilo arcade).
+        this._desenharCelulaAleatoria(ctx, x, y, cellW, thumbH, agora);
+      } else {
+        // Miniatura preenchendo a célula (cover, recortando o excedente).
+        this._desenharThumb(ctx, m.full, x, y, cellW, thumbH);
+      }
 
       // Faixa do nome (fonte arcade/maiúsculas).
       ctx.fillStyle = ehSel ? "#ffd34d" : "#1a1430";
