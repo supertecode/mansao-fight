@@ -33,8 +33,12 @@
 const CONFIG = {
   // --- Arena / física do mundo ---------------------------------------------
   arena: {
-    largura: 960, // largura lógica do canvas (px)
+    largura: 960, // largura lógica do canvas/tela (px) — o que cabe na visão
     altura: 540, // altura lógica do canvas (px)
+    // Largura TOTAL do mundo (px). Maior que a tela => a câmera desliza e
+    // revela a parte esquerda/direita da arena conforme a luta se move.
+    // Use múltiplos da tela (960*2=1920). O asset do mapa deve ter ESTA largura.
+    larguraMundo: 1920,
     chaoY: 486, // linha do chão (pés do lutador)
     gravidade: 2200, // px/s²
   },
@@ -254,7 +258,8 @@ const CONFIG = {
 };
 
 /* --- Atalhos derivados do CONFIG (mantêm o resto do código legível) -------- */
-const LARGURA = CONFIG.arena.largura;
+const LARGURA = CONFIG.arena.largura; // largura da TELA (câmera/janela)
+const MUNDO_L = CONFIG.arena.larguraMundo; // largura do MUNDO (arena inteira)
 const ALTURA = CONFIG.arena.altura;
 const CHAO_Y = CONFIG.arena.chaoY;
 const GRAVIDADE = CONFIG.arena.gravidade;
@@ -265,8 +270,25 @@ const ESCALA = CONFIG.movimento.escala;
 const VIDA_MAX = CONFIG.luta.vidaMax;
 const TEMPO_ROUND = CONFIG.luta.tempoRound;
 const ROUNDS_PARA_VENCER = CONFIG.luta.roundsParaVencer;
-const GOLPES = CONFIG.golpes; // alias (compatível com a Fase 2)
+const GOLPES = CONFIG.golpes; // fallback/default; o manifest sobrepõe por personagem
 const PROJETEIS = CONFIG.projeteis; // alias
+
+/* FRAME DATA POR PERSONAGEM — fonte de balanceamento = manifest.json.
+   Cada Fighter monta seu próprio conjunto de golpes a partir de
+   manifest.players[<personagem>].golpes. O CONFIG.golpes acima é só o DEFAULT:
+   se um golpe (ou um campo dele) faltar no manifest, cai para o default — assim
+   o jogo nunca quebra por dado ausente. Edite dano/knockback/startup/etc. no
+   manifest.json para balancear cada lutador separadamente. */
+function montarGolpes(golpesManifest) {
+  const fonte = golpesManifest || {};
+  const out = {};
+  const nomes = new Set([...Object.keys(GOLPES), ...Object.keys(fonte)]);
+  for (const nome of nomes) {
+    // Mescla campo a campo: manifest vence, default preenche o que faltar.
+    out[nome] = { ...(GOLPES[nome] || {}), ...(fonte[nome] || {}) };
+  }
+  return out;
+}
 
 // Mapa de teclas por SLOT (usa event.code, independente de layout).
 // Slot != personagem: o slot define as teclas; o personagem define o sprite.
@@ -383,6 +405,9 @@ class Recursos {
     this.faltando = 0;
     // Retratos da tela de seleção (fotos reais), por personagem.
     this.retratos = {};
+    // Imagem de fundo da arena (largura = MUNDO_L x altura = ALTURA).
+    // Opcional: se não existir, o cenário procedural é usado como fallback.
+    this.mapa = null;
   }
 
   async precarregar() {
@@ -397,6 +422,13 @@ class Recursos {
         }),
       );
     }
+
+    // Fundo da arena. Carregamento opcional: se faltar, usa-se o procedural.
+    tarefas.push(
+      carregarImagem("assets/mapas/arena.png").then((res) => {
+        this.mapa = res.ok ? res.img : null;
+      }),
+    );
 
     for (const player of Object.keys(this.manifest.players)) {
       this.dados[player] = {};
@@ -422,6 +454,12 @@ class Recursos {
   nome(player) {
     const p = this.manifest.players[player];
     return p && p.nome ? p.nome : player.toUpperCase();
+  }
+  // Frame data dos golpes deste personagem (bloco "golpes" do manifest).
+  // Pode vir vazio/parcial; montarGolpes() completa com os defaults do CONFIG.
+  golpes(player) {
+    const p = this.manifest.players[player];
+    return (p && p.golpes) || {};
   }
   tem(player, anim) {
     return !!(this.dados[player] && this.dados[player][anim]);
@@ -1065,7 +1103,7 @@ class Projetil {
       );
     }
 
-    if (this.x < -40 || this.x > LARGURA + 40) this.vivo = false;
+    if (this.x < -40 || this.x > MUNDO_L + 40) this.vivo = false;
   }
 
   caixa() {
@@ -1115,6 +1153,28 @@ class Projetil {
 const _bufFlash = document.createElement("canvas");
 const _bufFlashCtx = _bufFlash.getContext("2d");
 
+// Sombra (penumbra) pixelada: desenhada UMA vez como elipse com borda suave
+// em baixíssima resolução. Ao ampliar sem suavização, vira blocos de pixel.
+const _bufSombra = document.createElement("canvas");
+(function construirSombra() {
+  const W = 30,
+    H = 9; // resolução base baixa => pixels grandes ao ampliar
+  _bufSombra.width = W;
+  _bufSombra.height = H;
+  const c = _bufSombra.getContext("2d");
+  // Gradiente radial num "quadrado unitário"; a escala não uniforme (W,H)
+  // transforma o círculo numa elipse achatada com penumbra suave.
+  c.save();
+  c.scale(W, H);
+  const g = c.createRadialGradient(0.5, 0.5, 0, 0.5, 0.5, 0.5);
+  g.addColorStop(0, "rgba(0,0,0,0.55)");
+  g.addColorStop(0.62, "rgba(0,0,0,0.3)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  c.fillStyle = g;
+  c.fillRect(0, 0, 1, 1);
+  c.restore();
+})();
+
 class Fighter {
   constructor(recursos, slot, personagem, x, jogo, controle) {
     this.recursos = recursos;
@@ -1123,6 +1183,8 @@ class Fighter {
     this.jogo = jogo;
     this.controle = controle; // ControleTeclado ou ControleIA
     this.nome = recursos.nome(personagem);
+    // Frame data PRÓPRIO deste lutador (vem do manifest; default = CONFIG.golpes).
+    this.golpes = montarGolpes(recursos.golpes(personagem));
 
     this.x = x;
     this.y = CHAO_Y;
@@ -1216,7 +1278,7 @@ class Fighter {
       return meta.framesAtivos.includes(this.anim.frame);
     }
     const frames60 = this.estadoTempo * 60;
-    const fd = GOLPES[this.golpeAtual];
+    const fd = this.golpes[this.golpeAtual];
     if (fd) return frames60 >= fd.startup && frames60 < fd.startup + fd.ativo;
     // Sem framesAtivos nem frame data (ex.: super-projétil na pose "item"):
     // usa uma janela padrão para o disparo acontecer mesmo assim.
@@ -1224,9 +1286,9 @@ class Fighter {
   }
 
   hitbox() {
-    if (!this.golpeAtual || !GOLPES[this.golpeAtual]) return null;
+    if (!this.golpeAtual || !this.golpes[this.golpeAtual]) return null;
     if (!this._golpeAtivo()) return null;
-    const g = GOLPES[this.golpeAtual];
+    const g = this.golpes[this.golpeAtual];
     let x1, x2;
     if (this.facing === 1) {
       x1 = this.x + g.alcance[0];
@@ -1487,8 +1549,8 @@ class Fighter {
     if (
       !this.podeAgir() &&
       this.janelaCancel > 0 &&
-      GOLPES[this.golpeAtual] &&
-      GOLPES[this.golpeAtual].cancelavel &&
+      this.golpes[this.golpeAtual] &&
+      this.golpes[this.golpeAtual].cancelavel &&
       this.comboContador < CONFIG.combo.maxCombo
     ) {
       if (acoes.includes("chute")) {
@@ -1644,7 +1706,7 @@ class Fighter {
 
     const margem = 40;
     if (this.x < margem) this.x = margem;
-    if (this.x > LARGURA - margem) this.x = LARGURA - margem;
+    if (this.x > MUNDO_L - margem) this.x = MUNDO_L - margem;
   }
 
   _transicoes() {
@@ -1657,7 +1719,7 @@ class Fighter {
         // cancels — o atacante precisa esperar antes de poder agir novamente.
         // (Cancels ainda funcionam: eles interrompem o recovery do hit anterior.)
         if (this.anim.terminou) {
-          const fd = GOLPES[this.golpeAtual];
+          const fd = this.golpes[this.golpeAtual];
           const durAnim = this.anim.meta
             ? this.anim.meta.frames / this.anim.meta.fps
             : 0;
@@ -1698,6 +1760,20 @@ class Fighter {
   }
 
   // ---- Desenho --------------------------------------------------------------
+  // Penumbra pixelada arredondada projetada no chão (CHAO_Y). No ar ela
+  // encolhe e clareia, dando sensação de altura.
+  _desenharSombra(ctx) {
+    const alturaPulo = Math.max(0, CHAO_Y - this.y);
+    const k = Math.max(0.45, 1 - alturaPulo / 520); // 1 no chão -> menor no ar
+    const w = 120 * k;
+    const h = 36 * k;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false; // mantém os blocos de pixel nítidos
+    ctx.globalAlpha = 0.9 * k;
+    ctx.drawImage(_bufSombra, this.x - w / 2, CHAO_Y - h / 2 + 2, w, h);
+    ctx.restore();
+  }
+
   desenhar(ctx, debug) {
     const fr = this.recursos.frame(
       this.personagem,
@@ -1708,6 +1784,8 @@ class Fighter {
     const dh = this.recursos.frameH * ESCALA;
     const dx = this.x - dw / 2;
     const dy = this.y - dh;
+
+    this._desenharSombra(ctx); // penumbra no chão, sob o personagem
 
     ctx.save();
     if (this.facing === -1) {
@@ -1771,8 +1849,8 @@ class Fighter {
         ctx.strokeRect(hit.x, hit.y, hit.w, hit.h);
       }
       // Frame data do golpe atual (NOVO no debug).
-      if (this.golpeAtual && GOLPES[this.golpeAtual]) {
-        const fd = GOLPES[this.golpeAtual];
+      if (this.golpeAtual && this.golpes[this.golpeAtual]) {
+        const fd = this.golpes[this.golpeAtual];
         ctx.fillStyle = "#ff3";
         ctx.font = "11px monospace";
         ctx.textAlign = "center";
@@ -1892,6 +1970,7 @@ class Jogo {
     // Game feel global.
     this.hitStop = 0; // tempo congelado restante (s)
     this.shake = 0; // intensidade atual do tremor
+    this.cameraX = 0; // deslocamento horizontal da câmera no mundo (px)
     this.menuIndex = 0; // navegação da tela MODO
     this.dificuldadeIndex = 0; // navegação da tela DIFICULDADE
     this.configIndex = 0; // navegação da tela CONFIG
@@ -1923,7 +2002,7 @@ class Jogo {
       this.recursos,
       "p1",
       persP1,
-      LARGURA * 0.32,
+      MUNDO_L / 2 - 172, // ambos começam centrados no mundo, separados ~344px
       this,
       controleP1,
     );
@@ -1931,7 +2010,7 @@ class Jogo {
       this.recursos,
       "p2",
       persP2,
-      LARGURA * 0.68,
+      MUNDO_L / 2 + 172,
       this,
       controleP2,
     );
@@ -1946,14 +2025,15 @@ class Jogo {
     this.particulas.limpar();
     this.hitStop = 0;
     this.shake = 0;
-    this.p1.x = LARGURA * 0.32;
+    this.p1.x = MUNDO_L / 2 - 172;
     this.p1.y = CHAO_Y;
     this.p1.vx = 0;
     this.p1.vy = 0;
-    this.p2.x = LARGURA * 0.68;
+    this.p2.x = MUNDO_L / 2 + 172;
     this.p2.y = CHAO_Y;
     this.p2.vx = 0;
     this.p2.vy = 0;
+    this.cameraX = this._alvoCamera(); // posiciona a câmera de imediato
     this.p1.hp = VIDA_MAX;
     this.p2.hp = VIDA_MAX;
     this.p1.especial = 0;
@@ -2057,6 +2137,7 @@ class Jogo {
 
     // ----- Tela de LUTA -----
     this._atualizarShake(dt);
+    this._atualizarCamera(dt);
     this.timerFase += dt;
 
     if (this.faseRound === "anuncio") {
@@ -2303,6 +2384,24 @@ class Jogo {
     this.shake = Math.max(this.shake, intensidade);
   }
 
+  // Posição-alvo da câmera (px no mundo): centraliza o meio dos dois lutadores
+  // na tela, travando nas bordas do mundo para nunca mostrar fora da arena.
+  _alvoCamera() {
+    if (!this.p1 || !this.p2) return 0;
+    const meio = (this.p1.x + this.p2.x) / 2;
+    let cam = meio - LARGURA / 2;
+    const max = MUNDO_L - LARGURA;
+    if (cam < 0) cam = 0;
+    if (cam > max) cam = max;
+    return cam;
+  }
+
+  // Move a câmera suavemente em direção ao alvo (segue a luta sem solavancos).
+  _atualizarCamera(dt) {
+    const alvo = this._alvoCamera();
+    this.cameraX += (alvo - this.cameraX) * Math.min(1, dt * 8);
+  }
+
   _resolverColisaoCorpos() {
     const a = this.p1.hurtbox();
     const b = this.p2.hurtbox();
@@ -2340,7 +2439,7 @@ class Jogo {
     const hit = atacante.hitbox();
     if (!hit) return;
     if (!alvo.estaVivo()) return;
-    const g = GOLPES[atacante.golpeAtual];
+    const g = atacante.golpes[atacante.golpeAtual];
     // HITBOX INFERIOR: o golpe testa colisão contra a REGIÃO da hurtbox que
     // corresponde à sua altura. Um golpe "baixo" precisa alcançar o quadrante
     // inferior (pernas/pés); um "alto" passa por cima de quem está agachado.
@@ -2514,24 +2613,28 @@ class Jogo {
       return;
     }
 
-    // Tela de vitória: apenas cenário, sprites animando e o texto central.
+    // Tela de vitória: arena + sprites animando e o texto central.
     if (this.tela === TELAS.VITORIA) {
-      this._desenharCenario(ctx);
+      ctx.save();
+      ctx.translate(-Math.round(this.cameraX), 0); // mantém a câmera da luta
+      this._desenharArena(ctx);
       this.p1.desenhar(ctx, this.debug);
       this.p2.desenhar(ctx, this.debug);
       this.particulas.desenhar(ctx);
+      ctx.restore();
       this._desenharVitoria(ctx);
       return;
     }
 
-    // Tela de LUTA — mundo com screen shake.
+    // Tela de LUTA — mundo com screen shake + câmera que segue a luta.
     ctx.save();
     if (this.shake > 0) {
       const dx = (Math.random() - 0.5) * this.shake;
       const dy = (Math.random() - 0.5) * this.shake;
       ctx.translate(dx, dy);
     }
-    this._desenharCenario(ctx);
+    ctx.translate(-Math.round(this.cameraX), 0); // desloca o mundo sob a tela
+    this._desenharArena(ctx);
     this.p1.desenhar(ctx, this.debug);
     this.p2.desenhar(ctx, this.debug);
     for (const p of this.projeteis) p.desenhar(ctx);
@@ -2561,6 +2664,35 @@ class Jogo {
     ctx.fillRect(0, CHAO_Y, LARGURA, ALTURA - CHAO_Y);
     ctx.fillStyle = "#3a2f4f";
     ctx.fillRect(0, CHAO_Y, LARGURA, 6);
+  }
+
+  // Fundo da ARENA inteira (largura = MUNDO_L). Desenhado sob a câmera.
+  // Usa a imagem assets/mapas/arena.png se existir; senão, cai no procedural.
+  _desenharArena(ctx) {
+    if (this.recursos && this.recursos.mapa) {
+      // A imagem é esticada para ocupar o mundo inteiro (MUNDO_L x ALTURA).
+      // Para 1:1, exporte o PNG já em MUNDO_L x ALTURA (ex.: 1920x540).
+      ctx.drawImage(this.recursos.mapa, 0, 0, MUNDO_L, ALTURA);
+      return;
+    }
+
+    // Fallback procedural: mesmo visual de antes, porém cobrindo todo o mundo.
+    const g = ctx.createLinearGradient(0, 0, 0, ALTURA);
+    g.addColorStop(0, "#2a1a3a");
+    g.addColorStop(0.6, "#1a1426");
+    g.addColorStop(1, "#0c0a14");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, MUNDO_L, ALTURA);
+
+    ctx.fillStyle = "rgba(255,240,200,0.12)";
+    ctx.beginPath();
+    ctx.arc(MUNDO_L * 0.78, 110, 70, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#211a2e";
+    ctx.fillRect(0, CHAO_Y, MUNDO_L, ALTURA - CHAO_Y);
+    ctx.fillStyle = "#3a2f4f";
+    ctx.fillRect(0, CHAO_Y, MUNDO_L, 6);
   }
 
   _barraVida(ctx, x, y, w, h, hp, daDireita) {
