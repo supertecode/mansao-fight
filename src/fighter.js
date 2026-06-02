@@ -131,18 +131,22 @@ class Fighter {
     return this.hurtbox(); // "medio" (ou ausente): corpo inteiro
   }
 
-  // O golpe atual está nos quadros ativos? Usa framesAtivos do manifest se
-  // existir; senão cai no frame data (startup/ativo) do CONFIG.
+  // O golpe atual está nos quadros ativos (causando dano)?
+  // O TIMING vem SEMPRE do frame data (startup/ativo, em 60fps de referência),
+  // medido a partir do início do estado — portanto INDEPENDENTE de quantos
+  // sprites a animação tem. É isso que torna as animações escalonáveis: dá para
+  // adicionar quadros intermediários (mais fluidez) sem mudar QUANDO o golpe
+  // acerta. Se o visual sair de sincronia com o golpe ao adicionar frames,
+  // ajuste o "fps" da animação (mantendo a duração) e/ou o "startup" no golpe.
+  // OBS: "framesAtivos" no manifest virou LEGADO e não afeta mais o timing.
   _golpeAtivo() {
-    const meta = this.anim.meta;
-    if (meta && meta.framesAtivos && meta.framesAtivos.length) {
-      return meta.framesAtivos.includes(this.anim.frame);
-    }
     const frames60 = this.estadoTempo * 60;
     const fd = this.golpes[this.golpeAtual];
-    if (fd) return frames60 >= fd.startup && frames60 < fd.startup + fd.ativo;
-    // Sem framesAtivos nem frame data (ex.: super-projétil na pose "item"):
-    // usa uma janela padrão para o disparo acontecer mesmo assim.
+    if (fd && fd.startup != null && fd.ativo != null) {
+      return frames60 >= fd.startup && frames60 < fd.startup + fd.ativo;
+    }
+    // Sem frame data (ex.: super-projétil na pose "item"): janela padrão para o
+    // disparo acontecer mesmo assim.
     return frames60 >= 5 && frames60 < 10;
   }
 

@@ -128,6 +128,31 @@ Abra `assets/data/players/<p>.json`:
 - **`animacoes`** — para cada animação: nº de `frames`, `fps`, `loop` e `framesAtivos` (quais quadros causam dano).
 - **`golpes`** — frame data por golpe (`startup`, `ativo`, `recovery`, `dano`, `knockback`, `alcance`, `altura`, etc.). Campos ausentes herdam o padrão do `CONFIG`.
 
+### Aumentar a fluidez de uma animação (adicionar frames)
+
+As animações são **escalonáveis**: dá para deixar um golpe mais fluido adicionando
+sprites intermediários, uma animação de cada vez, sem quebrar o jogo. O número de
+sprites é **independente do gameplay** — o momento do dano vem do frame-data
+(`startup`/`ativo`), não da quantidade de quadros.
+
+Para tornar, por exemplo, o `punch` (3 frames) mais fluido com 5 frames:
+
+1. Desenhe os quadros intermediários e salve como `punch_0.png … punch_4.png` em `assets/sprites/<p>/`.
+2. No JSON do lutador, em `animacoes.punch`, ajuste **`frames`** para `5`.
+3. Aumente o **`fps`** proporcionalmente para manter a MESMA duração (mais quadros
+   no mesmo tempo = mais fluido). Ex.: de `3 frames @ 12 fps` (0,25 s) para
+   `5 frames @ 20 fps` (0,25 s). Se não escalar o fps, a animação só fica mais lenta.
+
+Garantias do engine:
+
+- **Funciona com qualquer contagem** (2, 4, 5…): a animação usa só os sprites que
+  existem em disco. Você pode declarar `frames: 5` e ir adicionando os PNGs aos
+  poucos — enquanto faltam, ele reproduz os presentes, sem quadros quebrados.
+- **O dano não se mexe**: como o timing vem do frame-data, o golpe acerta no mesmo
+  momento independentemente de ter 2 ou 5 sprites. Se o visual sair de sincronia,
+  ajuste o `fps` (duração) e/ou o `startup` do golpe.
+- O campo `framesAtivos` no manifest virou **legado** e é ignorado para o timing.
+
 ### Adicionar uma arena
 
 1. Coloque o PNG em `assets/mapas/` como `arenaN.png` (veja a spec em

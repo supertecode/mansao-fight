@@ -82,9 +82,11 @@ const CONFIG = {
      alcance [min,max] e altura [topo,base] da hitbox (offsets dos pés),
      cancelavel (se pode ser cancelado em combo ao ACERTAR).
 
-     OBS: quando o sprite tem "framesAtivos" no manifest, ele manda no timing
-     real do dano; senão o engine cai para o startup/ativo daqui (ver
-     Fighter._golpeAtivo). Assim o frame data sempre tem efeito. */
+     OBS: o TIMING do dano vem SEMPRE deste frame data (startup/ativo), medido
+     em 60fps de referência a partir do início do golpe — INDEPENDENTE de quantos
+     sprites a animação tem. Por isso dá para adicionar quadros intermediários
+     (mais fluidez) sem mudar QUANDO o golpe acerta (ver Fighter._golpeAtivo).
+     O campo "framesAtivos" no manifest virou LEGADO e é ignorado para o timing. */
   golpes: {
     punch: {
       startup: 4,

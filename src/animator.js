@@ -31,7 +31,11 @@ class Animator {
 
   atualizar(dt) {
     if (!this.meta) return;
-    const total = this.meta.frames;
+    // Usa a contagem EFETIVA de quadros (só os sprites que carregaram), caindo
+    // para o "frames" declarado se ainda não foi calculada. Permite declarar mais
+    // quadros no JSON do que existem em disco e ir adicionando a arte aos poucos.
+    const total =
+      this.meta.framesReais != null ? this.meta.framesReais : this.meta.frames;
     if (total <= 1) {
       this.terminou = !this.meta.loop;
       return;

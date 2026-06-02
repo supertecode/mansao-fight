@@ -133,6 +133,28 @@ class Recursos {
       }
     }
     await Promise.all(tarefas);
+
+    // ESCALONABILIDADE DAS ANIMAÇÕES: conta quantos quadros REALMENTE carregaram,
+    // numa sequência contígua a partir do índice 0 ("framesReais"). A animação
+    // reproduz só esses quadros presentes. Assim você pode declarar um "frames"
+    // MAIOR no JSON (ex.: 4) e ir adicionando os PNGs intermediários aos poucos:
+    // enquanto faltam arquivos, o jogo usa os que existem, sem quadros quebrados.
+    // O "frames" declarado continua valendo como TETO e para a duração lógica
+    // do golpe (recovery), que não muda conforme você preenche a arte.
+    for (const player of Object.keys(this.dados)) {
+      for (const nomeAnim of Object.keys(this.dados[player])) {
+        const reg = this.dados[player][nomeAnim];
+        let reais = 0;
+        while (
+          reais < reg.frames.length &&
+          reg.frames[reais] &&
+          reg.frames[reais].ok
+        ) {
+          reais++;
+        }
+        reg.meta.framesReais = reais;
+      }
+    }
   }
 
   nome(player) {
