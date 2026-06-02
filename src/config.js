@@ -385,6 +385,45 @@ const ROUNDS_PARA_VENCER = CONFIG.luta.roundsParaVencer;
 const GOLPES = CONFIG.golpes; // fallback/default; o manifest sobrepõe por personagem
 const PROJETEIS = CONFIG.projeteis; // alias
 
+/* ===========================================================================
+   TELA-TÍTULO (START) — identidade visual + linha do tempo da cinemática.
+   >>> AJUSTE FINO DA ABERTURA AQUI <<<. Todos os tempos em SEGUNDOS, medidos a
+   partir do início da FASE "intro". A intro inteira é pulável com qualquer
+   tecla (ver Jogo._algumInput) e nunca passa de START_TIMING.introTotal.
+   =========================================================================== */
+const START_TIMING = {
+  introTotal: 3.0, // duração máxima da intro antes de cair no título
+  flashRaio: 0.85, // instante do raio que "revela" o salão (flash branco)
+  logoCai: 1.0, // o logo começa a despencar do topo
+  impacto: 1.3, // o logo crava: clarão + tremor de tela (screen shake)
+  tagline: 1.75, // a tagline entra (slam)
+  pressKey: 2.3, // "PRESSIONE QUALQUER TECLA" começa a piscar
+  ociosoAttract: 10, // s sem input no título → entra em attract mode
+  attractPorSlide: 3.5, // s que cada retrato fica no slideshow do attract
+  saida: 0.5, // duração da transição título → menu (flash + fade)
+};
+// Teclas que NÃO contam como "qualquer tecla" (toggles globais de debug/CRT,
+// teclas do navegador) — assim F1/F2 não pulam a intro nem avançam o título.
+const START_IGNORAR_TECLAS = new Set([
+  "F1", "F2", "F3", "F5", "F11", "F12",
+]);
+
+/* IDENTIDADE VISUAL — paleta de 3 cores dominantes + 1 acento neon (roxo
+   elétrico). Centralizada para que logo, menu e atmosfera fiquem coerentes. */
+const PALETA = {
+  preto: "#0a0815", // fundo dominante
+  carmesim: "#c81e2b", // corpo do logo / perigo
+  carmesimClaro: "#ff5a6e",
+  carmesimEscuro: "#5a0a12",
+  ouro: "#ffd34d", // dourado envelhecido (acentos, títulos)
+  acento: "#b15cff", // ROXO ELÉTRICO — cor de acento neon (plasma/glow)
+  acentoClaro: "#d9a9ff",
+  texto: "#cfc6e0",
+  textoFraco: "#9b90b5",
+};
+const VERSAO = "v0.3.0";
+const CREDITOS = "© 2026 · MANSÃO FIGHT · SAMUEL vs VITOR";
+
 /* FRAME DATA POR PERSONAGEM — fonte de balanceamento = manifest.json.
    Cada Fighter monta seu próprio conjunto de golpes a partir de
    manifest.players[<personagem>].golpes. O CONFIG.golpes acima é só o DEFAULT:

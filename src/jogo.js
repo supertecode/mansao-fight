@@ -17,6 +17,8 @@ class Jogo {
     this.debug = false;
 
     this.tela = TELAS.START;
+    this.start = this._estadoStartInicial(); // estado da tela-título (intro/attract)
+    this.modoRevealT0 = 0; // marco temporal do staggered reveal do menu MODO
     this.projeteis = [];
 
     // Placar / rounds.
@@ -39,6 +41,7 @@ class Jogo {
     // Game feel global.
     this.hitStop = 0; // tempo congelado restante (s)
     this.shake = 0; // intensidade atual do tremor
+    this.flash = { a: 0, cor: "255,255,255", vel: 3.2 }; // clarão de transição global
     this.textoTech = null; // rótulo "TECH!" temporário ao defender agarrão
     this.cameraX = 0; // deslocamento horizontal da câmera no mundo (px)
     this.menuIndex = 0; // navegação da tela MODO
@@ -208,6 +211,7 @@ class Jogo {
 
       this._atualizar(dt);
       this._desenhar();
+      this._desenharFlashGlobal(dt); // clarão de transição sobre QUALQUER tela
 
       this.entrada.confirmar = false;
       this.entrada.voltar = false;
@@ -220,13 +224,7 @@ class Jogo {
   _atualizar(dt) {
     // --- Telas de menu ---
     if (this.tela === TELAS.START) {
-      if (this.entrada.confirmar) {
-        this.audio.garantir();
-        this.somUI.tocar("confirmar");
-        this.musica.tocar("menu");
-        this.tela = TELAS.MODO;
-        this.menuIndex = 0;
-      }
+      this._atualizarStart(dt);
       this.entrada.limparPendentes();
       return;
     }
@@ -268,8 +266,7 @@ class Jogo {
       if (this.entrada.confirmar) {
         this.somUI.tocar("confirmar");
         this.musica.tocar("menu");
-        this.tela = TELAS.MODO;
-        this.menuIndex = 0;
+        this._entrarModo();
       }
       this.entrada.limparPendentes();
       return;
@@ -360,6 +357,125 @@ class Jogo {
     }
   }
 
+  /* =========================================================================
+     TELA-TÍTULO (START) — máquina de estados da abertura.
+     Fases: "intro" (cinemática) → "titulo" (PRESS ANY KEY) → "attract" (demo de
+     retratos após ociosidade) → "saindo" (transição para o menu). Qualquer
+     tecla pula a intro, dispara o início pelo título e sai do attract.
+     ========================================================================= */
+  _estadoStartInicial() {
+    return {
+      fase: "intro", // "intro" | "titulo" | "attract" | "saindo"
+      t: 0, // tempo decorrido NA FASE atual (s)
+      ocioso: 0, // tempo sem input no título (dispara attract aos 10s)
+      attractIdx: 0, // índice do retrato atual no slideshow do attract
+      flashImpacto: 0, // 1→0: clarão + tremor do impacto do logo
+      bateu: false, // trava: o impacto do logo só dispara uma vez
+    };
+  }
+
+  // Dispara um clarão de transição (cor "r,g,b"). vel = taxa de decaimento.
+  _flash(cor = "255,255,255", vel = 3.2) {
+    this.flash.cor = cor;
+    this.flash.vel = vel;
+    this.flash.a = 1;
+  }
+
+  // Desenha e decai o clarão de transição global (acima de qualquer tela).
+  _desenharFlashGlobal(dt) {
+    if (this.flash.a <= 0) return;
+    this.ctx.fillStyle = `rgba(${this.flash.cor},${this.flash.a})`;
+    this.ctx.fillRect(0, 0, LARGURA, ALTURA);
+    this.flash.a = Math.max(0, this.flash.a - dt * this.flash.vel);
+  }
+
+  // Entra na tela MODO rearmando o staggered reveal dos itens (baixo→cima).
+  _entrarModo(index = 0) {
+    this.menuIndex = index;
+    this.modoRevealT0 = performance.now();
+    this.tela = TELAS.MODO;
+  }
+
+  // "Qualquer tecla" (teclado, ENTER/ESC ou gamepad), ignorando toggles globais
+  // (F1 debug, F2 CRT, etc.) para que eles não pulem a intro nem avancem a tela.
+  _algumInput(gp) {
+    const borda = this.entrada.bordas.some((c) => !START_IGNORAR_TECLAS.has(c));
+    return (
+      borda ||
+      this.entrada.confirmar ||
+      this.entrada.voltar ||
+      (gp && (gp.confirm || gp.back))
+    );
+  }
+
+  _atualizarStart(dt) {
+    const S = this.start;
+    const T = START_TIMING;
+    S.t += dt;
+    if (S.flashImpacto > 0) S.flashImpacto = Math.max(0, S.flashImpacto - dt * 3);
+    const gp = this.gamepad.ler();
+    const tecla = this._algumInput(gp);
+
+    if (S.fase === "intro") {
+      // No instante do impacto, dispara clarão + tremor (uma única vez).
+      if (!S.bateu && S.t >= T.impacto) {
+        S.bateu = true;
+        S.flashImpacto = 1;
+      }
+      // Pulável a qualquer momento; ou termina sozinha em introTotal.
+      if (tecla || S.t >= T.introTotal) {
+        S.fase = "titulo";
+        S.t = 0;
+        S.ocioso = 0;
+      }
+      return;
+    }
+
+    if (S.fase === "titulo") {
+      if (tecla) {
+        this._sairDoTitulo();
+        return;
+      }
+      S.ocioso += dt;
+      if (S.ocioso >= T.ociosoAttract) {
+        S.fase = "attract";
+        S.t = 0;
+        S.attractIdx = 0;
+      }
+      return;
+    }
+
+    if (S.fase === "attract") {
+      if (tecla) {
+        S.fase = "titulo";
+        S.t = 0;
+        S.ocioso = 0;
+        return;
+      }
+      if (S.t >= T.attractPorSlide) {
+        S.t = 0;
+        S.attractIdx = (S.attractIdx + 1) % PERSONAGENS.length;
+      }
+      return;
+    }
+
+    if (S.fase === "saindo") {
+      // Ao fim da transição (flash + fade), abre o menu com staggered reveal.
+      if (S.t >= T.saida) this._entrarModo(0);
+      return;
+    }
+  }
+
+  // Dispara a saída do título para o menu: garante áudio (1º gesto), toca o
+  // som de confirmação e a música do menu, e entra na transição "saindo".
+  _sairDoTitulo() {
+    this.audio.garantir();
+    this.somUI.tocar("confirmar");
+    this.musica.tocar("menu");
+    this.start.fase = "saindo";
+    this.start.t = 0;
+  }
+
   // --- Tela MODO: 1 Jogador / 2 Jogadores / Configurações ---
   _atualizarModo() {
     const total = 3;
@@ -372,6 +488,7 @@ class Jogo {
 
     if (this.entrada.voltar) {
       this.somUI.tocar("voltar");
+      this.start = this._estadoStartInicial(); // replay da cinemática de abertura
       this.tela = TELAS.START;
       return;
     }
@@ -379,11 +496,13 @@ class Jogo {
     if (this.entrada.confirmar) {
       this.somUI.tocar("confirmar");
       if (this.menuIndex === 0) {
-        // 1 Jogador → tela intermediária de dificuldade.
+        // 1 Jogador → tela intermediária de dificuldade (entra "socando": flash).
+        this._flash("255,255,255", 3.4);
         this.dificuldadeIndex = 1; // começa selecionado em Médio
         this.tela = TELAS.DIFICULDADE;
       } else if (this.menuIndex === 1) {
         // 2 Jogadores → direto para seleção de personagem.
+        this._flash("255,255,255", 3.4);
         this.modo = "2p";
         this._iniciarSelect();
       } else {
@@ -407,7 +526,7 @@ class Jogo {
 
     if (this.entrada.voltar) {
       this.somUI.tocar("voltar");
-      this.tela = TELAS.MODO;
+      this._entrarModo(0);
       return;
     }
 
@@ -554,7 +673,7 @@ class Jogo {
         this.somUI.tocar("voltar");
       } else {
         this.somUI.tocar("voltar");
-        this.tela = TELAS.MODO;
+        this._entrarModo(this.menuIndex);
       }
       return;
     }
@@ -704,7 +823,10 @@ class Jogo {
 
     if (this.entrada.voltar) {
       this.somUI.tocar("voltar");
-      this.tela = this.telaAnteriorConfig;
+      // Voltando ao menu principal: refaz o staggered reveal destacando
+      // "Configurações" (item de onde se veio). Da pausa, volta para a LUTA.
+      if (this.telaAnteriorConfig === TELAS.MODO) this._entrarModo(2);
+      else this.tela = this.telaAnteriorConfig;
       return;
     }
 
@@ -820,8 +942,7 @@ class Jogo {
     this.pausado = false;
     this.pauseModo = "menu";
     this.musica.tocar("menu");
-    this.tela = TELAS.MODO;
-    this.menuIndex = 0;
+    this._entrarModo();
   }
 
   // --- Screen shake: decai com o tempo ---
@@ -1069,20 +1190,21 @@ class Jogo {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, LARGURA, ALTURA);
 
-    // Telas de menu (sem shake).
+    // Telas de menu (sem shake da luta). Fundo unificado do "salão da mansão".
     if (this.tela === TELAS.START) {
-      this._desenharCenario(ctx);
-      this._desenharStart(ctx);
+      this._desenharStart(ctx); // desenha o próprio fundo + cinemática
       return;
     }
     if (this.tela === TELAS.MODO) {
-      this._desenharCenario(ctx);
+      this._desenharFundoMansao(ctx);
       this._desenharModo(ctx);
+      this._crtOverlay(ctx);
       return;
     }
     if (this.tela === TELAS.DIFICULDADE) {
-      this._desenharCenario(ctx);
+      this._desenharFundoMansao(ctx);
       this._desenharDificuldade(ctx);
+      this._crtOverlay(ctx);
       return;
     }
     if (this.tela === TELAS.SELECT) {
@@ -1099,8 +1221,9 @@ class Jogo {
       return;
     }
     if (this.tela === TELAS.CONFIG) {
-      this._desenharCenario(ctx);
+      this._desenharFundoMansao(ctx);
       this._desenharConfig(ctx);
+      this._crtOverlay(ctx);
       return;
     }
 
@@ -1349,72 +1472,474 @@ class Jogo {
   }
 
   // ---- Tela inicial (título) -----------------------------------------------
+  /* TELA-TÍTULO — render por fase. Hierarquia visual (do mais forte ao mais
+     fraco): LOGO > PRESSIONE QUALQUER TECLA > tagline > atmosfera > rodapé.
+     O fundo nunca compete com o texto (escurecido + vinheta). */
   _desenharStart(ctx) {
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffd34d";
-    ctx.font = "bold 62px 'Segoe UI', sans-serif";
-    ctx.fillText("MANSÃO FIGHT", LARGURA / 2, 140);
+    const S = this.start;
+    const T = START_TIMING;
+    const now = performance.now();
 
-    ctx.fillStyle = "#cfc6e0";
-    ctx.font = "22px 'Segoe UI', sans-serif";
-    ctx.fillText(
-      this.recursos.nome("p1") + "  VS  " + this.recursos.nome("p2"),
-      LARGURA / 2,
-      184,
-    );
+    // ATTRACT MODE: slideshow dos lutadores (demo enquanto ninguém joga).
+    if (S.fase === "attract") {
+      this._desenharAttract(ctx);
+      this._crtOverlay(ctx);
+      return;
+    }
 
-    // Tabela rápida de comandos (atualizada com agarrão/especial).
-    const linhas1 = [
-      "JOGADOR 1",
-      "A / D andar   W pular   S agachar",
-      "F soco   G chute   H projétil",
-      "C agarrão   V especial   R defender",
-    ];
-    const linhas2 = [
-      "JOGADOR 2",
-      "← / → andar   ↑ pular   ↓ agachar",
-      "J soco   K chute   L projétil",
-      "N agarrão   M especial   P defender",
-    ];
-    ctx.font = "16px 'Segoe UI', monospace";
-    const desenhaCol = (linhas, cx) => {
-      let y = 250;
-      for (let i = 0; i < linhas.length; i++) {
-        ctx.fillStyle = i === 0 ? "#5cd6ff" : "#e8e2f0";
-        ctx.font =
-          i === 0
-            ? "bold 20px 'Segoe UI', sans-serif"
-            : "15px 'Segoe UI', monospace";
-        ctx.fillText(linhas[i], cx, y);
-        y += 28;
+    // Tremor de tela no impacto do logo (apenas durante o baque).
+    const sh = S.flashImpacto * 12;
+    ctx.save();
+    if (sh > 0.4)
+      ctx.translate((Math.random() - 0.5) * sh, (Math.random() - 0.5) * sh);
+
+    this._desenharFundoMansao(ctx);
+
+    // ---- LOGO: aparece só depois que começa a cair (durante a intro) ----
+    let mostrarLogo = true;
+    let logoY = 150;
+    let escala = 1;
+    let glow = 0.85 + 0.25 * Math.sin(now / 380);
+
+    if (S.fase === "intro") {
+      if (S.t < T.logoCai) {
+        mostrarLogo = false; // ainda só atmosfera + raio
+      } else if (S.t < T.impacto) {
+        // QUEDA: ease-in (acelera) do topo até a posição final.
+        const k = (S.t - T.logoCai) / (T.impacto - T.logoCai);
+        const ke = k * k;
+        logoY = -130 + (150 + 130) * ke;
+        escala = 1.15 - 0.15 * ke;
+        glow = 0.5;
+      } else {
+        // SETTLE: pequena oscilação amortecida ao cravar.
+        const b = S.t - T.impacto;
+        logoY = 150 - 16 * Math.exp(-9 * b) * Math.cos(20 * b);
+        escala = 1 + 0.1 * Math.exp(-9 * b) * Math.cos(20 * b);
+        glow = 0.6 + S.flashImpacto * 0.8;
       }
-    };
-    desenhaCol(linhas1, LARGURA * 0.28);
-    desenhaCol(linhas2, LARGURA * 0.72);
+    } else if (S.fase === "saindo") {
+      glow = 1 + S.t / T.saida; // o logo "esquenta" ao sair
+    }
 
-    ctx.fillStyle = "#9b90b5";
-    ctx.font = "15px 'Segoe UI', sans-serif";
-    ctx.fillText(
-      "Combos: cancele soco→chute/especial • barra cheia libera o especial • F1 = debug",
-      LARGURA / 2,
-      410,
+    if (mostrarLogo) this._desenharLogo(ctx, LARGURA / 2, logoY, escala, glow);
+
+    // ---- TAGLINE (slam-in: entra grande e fecha) ----
+    const taglineVis =
+      (S.fase === "intro" && S.t >= T.tagline) ||
+      S.fase === "titulo" ||
+      S.fase === "saindo";
+    if (mostrarLogo && taglineVis) {
+      let ta = 1,
+        tsc = 1;
+      if (S.fase === "intro") {
+        const k = Math.min(1, (S.t - T.tagline) / 0.25);
+        ta = k;
+        tsc = 1.4 - 0.4 * k;
+      }
+      ctx.save();
+      ctx.globalAlpha = ta;
+      ctx.translate(LARGURA / 2, 212);
+      ctx.scale(tsc, tsc);
+      ctx.textAlign = "center";
+      ctx.fillStyle = PALETA.acentoClaro;
+      ctx.font = "bold 22px 'Segoe UI', sans-serif";
+      try { ctx.letterSpacing = "6px"; } catch (e) {}
+      ctx.fillText("SEM PIEDADE · SEM REGRAS · SÓ LUTA", 0, 0);
+      try { ctx.letterSpacing = "0px"; } catch (e) {}
+      ctx.restore();
+    }
+
+    // ---- "PRESSIONE QUALQUER TECLA" (pisca em loop, estilo arcade) ----
+    const pressVis =
+      (S.fase === "intro" && S.t >= T.pressKey) || S.fase === "titulo";
+    if (pressVis && Math.floor(now / 450) % 2 === 0) {
+      ctx.save();
+      ctx.textAlign = "center";
+      ctx.shadowColor = PALETA.acento;
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 28px 'Segoe UI', sans-serif";
+      ctx.fillText("PRESSIONE QUALQUER TECLA", LARGURA / 2, 432);
+      ctx.restore();
+    }
+
+    // ---- Rodapé: créditos (esq) + versão (dir), discretos (fonte mono) ----
+    ctx.fillStyle = "rgba(155,144,181,0.6)";
+    ctx.font = "12px 'Segoe UI', monospace";
+    ctx.textAlign = "left";
+    ctx.fillText(CREDITOS, 16, ALTURA - 14);
+    ctx.textAlign = "right";
+    ctx.fillText(VERSAO, LARGURA - 16, ALTURA - 14);
+
+    ctx.restore(); // fim do bloco sujeito ao tremor
+
+    // ---- Clarão do IMPACTO do logo (branco-frio sobre tudo) ----
+    if (S.flashImpacto > 0) {
+      ctx.fillStyle = `rgba(220,225,255,${0.7 * S.flashImpacto})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+    // ---- Flash do RAIO da intro (revela o salão por um instante) ----
+    if (S.fase === "intro" && S.t >= T.flashRaio && S.t < T.flashRaio + 0.18) {
+      const k = 1 - (S.t - T.flashRaio) / 0.18;
+      ctx.fillStyle = `rgba(255,255,255,${0.8 * k})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+
+    // ---- CRT: scanlines + vinheta (alternável com F2) ----
+    this._crtOverlay(ctx);
+
+    // ---- Transição de SAÍDA p/ o menu: clarão que sobe e segura até o corte ----
+    if (S.fase === "saindo") {
+      const a = Math.min(1, (S.t / T.saida) * 2);
+      ctx.fillStyle = `rgba(240,235,255,${a})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
+    }
+  }
+
+  /* Filtro CRT compartilhado por todas as telas de menu: scanlines leves +
+     vinheta radial. Alternável com F2 (this.crt). */
+  _crtOverlay(ctx) {
+    if (!this.crt) return;
+    this._scanlines(ctx);
+    const vg = ctx.createRadialGradient(
+      LARGURA / 2, ALTURA / 2, ALTURA * 0.34,
+      LARGURA / 2, ALTURA / 2, ALTURA * 0.82,
     );
+    vg.addColorStop(0, "rgba(0,0,0,0)");
+    vg.addColorStop(1, "rgba(0,0,0,0.62)");
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+  }
 
-    if (Math.floor(performance.now() / 500) % 2 === 0) {
-      ctx.fillStyle = "#ffd34d";
-      ctx.font = "bold 26px 'Segoe UI', sans-serif";
-      ctx.fillText("Pressione ENTER para começar", LARGURA / 2, 470);
+  /* FUNDO "SALÃO DA MANSÃO EM RUÍNAS" — 4 planos de parallax (janela > parede
+     > colunas > piso) + candelabros, poeira e relâmpago ocasional. Totalmente
+     procedural e SEM estado (lê só o relógio), então é reutilizável atrás de
+     qualquer tela de menu sem alocar nada. O parallax é uma oscilação suave
+     (sway) — dá profundidade sem rolagem infinita num interior fechado. */
+  _desenharFundoMansao(ctx) {
+    const t = performance.now() / 1000;
+    const sway = Math.sin(t * 0.18) * 10; // px de oscilação base
+
+    // Relâmpago ocasional (stateless, dois períodos quase-primos p/ irregularidade).
+    const i1 = t % 7.3,
+      i2 = t % 4.1;
+    let raio = 0;
+    if (i1 < 0.16) raio = Math.max(raio, Math.pow(1 - i1 / 0.16, 1.3));
+    if (i2 < 0.08) raio = Math.max(raio, 0.6 * Math.pow(1 - i2 / 0.08, 1.3));
+
+    // Base — gradiente do interior escuro.
+    const g = ctx.createLinearGradient(0, 0, 0, ALTURA);
+    g.addColorStop(0, "#160e22");
+    g.addColorStop(0.55, "#0b0814");
+    g.addColorStop(1, "#06040b");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    // ===== PLANO 1 (fundo): janela com céu noturno + relâmpago =====
+    const wx = LARGURA / 2 + sway * 0.3;
+    const wy = 54,
+      ww = 300,
+      wh = 210;
+    const cu = (a, b) => Math.round(a + (b - a) * raio);
+    ctx.fillStyle = `rgb(${cu(26, 210)},${cu(28, 205)},${cu(48, 235)})`;
+    ctx.fillRect(wx - ww / 2, wy, ww, wh);
+    if (raio > 0.45) {
+      // Bolt (raio) recortado pela janela.
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(wx - ww / 2, wy, ww, wh);
+      ctx.clip();
+      ctx.globalAlpha = Math.min(1, (raio - 0.45) * 3);
+      ctx.strokeStyle = "#eaf0ff";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      let bx = wx + Math.sin(t * 30) * 20,
+        by = wy;
+      ctx.moveTo(bx, by);
+      for (let k = 0; k < 6; k++) {
+        bx += Math.sin(t * 50 + k * 2.3) * 26;
+        by += wh / 6;
+        ctx.lineTo(bx, by);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+    // Caixilho em cruz + moldura da janela.
+    ctx.fillStyle = "#0a0712";
+    ctx.fillRect(wx - 4, wy, 8, wh);
+    ctx.fillRect(wx - ww / 2, wy + wh / 2 - 4, ww, 8);
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = "#0a0712";
+    ctx.strokeRect(wx - ww / 2, wy, ww, wh);
+    // Luz do relâmpago invadindo o salão (tinge de roxo — o acento).
+    if (raio > 0) {
+      ctx.fillStyle = `rgba(150,140,255,${0.16 * raio})`;
+      ctx.fillRect(0, 0, LARGURA, ALTURA);
     }
 
-    if (this.recursos.faltando > 0) {
-      ctx.fillStyle = "#e05050";
-      ctx.font = "14px 'Segoe UI', sans-serif";
-      ctx.fillText(
-        this.recursos.faltando + " imagem(ns) ausente(s): usando placeholders",
-        LARGURA / 2,
-        510,
-      );
+    // ===== PLANO 2 (parede): retratos rasgados + rachaduras =====
+    ctx.save();
+    ctx.translate(sway * 0.6, 0);
+    ctx.fillStyle = "rgba(30,22,46,0.55)";
+    ctx.fillRect(-20, 150, LARGURA + 40, 230);
+    for (const [qx, qy] of [[120, 210], [LARGURA - 150, 230], [250, 300]]) {
+      ctx.save();
+      ctx.translate(qx, qy);
+      ctx.rotate(Math.sin(qx) * 0.06); // torto, mas determinístico
+      ctx.fillStyle = "#120c1e";
+      ctx.fillRect(-34, -44, 68, 88);
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "rgba(120,96,40,0.5)"; // dourado envelhecido
+      ctx.strokeRect(-34, -44, 68, 88);
+      ctx.restore();
     }
+    ctx.strokeStyle = "rgba(0,0,0,0.5)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(420, 150);
+    ctx.lineTo(440, 230);
+    ctx.lineTo(415, 300);
+    ctx.lineTo(450, 360);
+    ctx.moveTo(700, 160);
+    ctx.lineTo(685, 250);
+    ctx.stroke();
+    ctx.restore();
+
+    // ===== PLANO 3 (colunas) — emolduram as laterais =====
+    const off3 = sway * 0.95;
+    const coluna = (cx) => {
+      const cg = ctx.createLinearGradient(cx - 26, 0, cx + 26, 0);
+      cg.addColorStop(0, "#0d0a16");
+      cg.addColorStop(0.5, "#241a38");
+      cg.addColorStop(1, "#0d0a16");
+      ctx.fillStyle = cg;
+      ctx.fillRect(cx - 26, 90, 52, CHAO_Y - 90);
+      ctx.fillStyle = "#2c2046";
+      ctx.fillRect(cx - 34, 86, 68, 16); // capitel
+      ctx.fillRect(cx - 34, CHAO_Y - 14, 68, 14); // base
+    };
+    coluna(70 + off3);
+    coluna(LARGURA - 70 + off3);
+
+    // ===== CANDELABROS — chamas tremeluzentes (aditivo, halo roxo) =====
+    const chama = (fx, fy) => {
+      const fl =
+        0.6 + 0.4 * Math.sin(t * 11 + fx) + 0.2 * Math.sin(t * 23 + fx);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 60 + fl * 18);
+      fg.addColorStop(0, "rgba(255,180,90,0.5)");
+      fg.addColorStop(0.4, "rgba(177,92,255,0.18)");
+      fg.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = fg;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 60 + fl * 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255,210,120,0.85)";
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, 5 + fl, 12 + fl * 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    };
+    chama(150 + off3, 250);
+    chama(LARGURA - 150 + off3, 250);
+
+    // ===== PLANO 4 (frente): piso de mármore rachado =====
+    const fgp = ctx.createLinearGradient(0, CHAO_Y, 0, ALTURA);
+    fgp.addColorStop(0, "#1a1330");
+    fgp.addColorStop(1, "#08060f");
+    ctx.fillStyle = fgp;
+    ctx.fillRect(0, CHAO_Y, LARGURA, ALTURA - CHAO_Y);
+    ctx.fillStyle = "rgba(177,92,255,0.2)"; // linha de destaque (acento)
+    ctx.fillRect(0, CHAO_Y, LARGURA, 3);
+    ctx.strokeStyle = "rgba(0,0,0,0.55)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(300, CHAO_Y + 6);
+    ctx.lineTo(360, ALTURA);
+    ctx.moveTo(620, CHAO_Y + 4);
+    ctx.lineTo(580, ALTURA);
+    ctx.moveTo(480, CHAO_Y + 8);
+    ctx.lineTo(500, ALTURA);
+    ctx.stroke();
+
+    // ===== POEIRA FLUTUANTE (motes lentos, aditivo) =====
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 42; i++) {
+      const s = i * 97.13;
+      const vel = 6 + (i % 5) * 3;
+      const yy = ALTURA - ((t * vel + s * 11) % (ALTURA + 40));
+      const xx = ((s * 53) % LARGURA) + Math.sin(t * 0.5 + i) * 18;
+      ctx.globalAlpha = 0.06 + 0.1 * (0.5 + 0.5 * Math.sin(t * 0.7 + i));
+      ctx.fillStyle = i % 4 === 0 ? PALETA.acentoClaro : "#d8cff0";
+      ctx.beginPath();
+      ctx.arc(xx, yy, 0.8 + (i % 3) * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  /* LOGO "MANSÃO FIGHT" — tipografia pesada (900) com material composto:
+     relevo escuro + corpo metálico carmesim (bisel central) + bisel dourado no
+     topo + arcos de plasma roxo (acento) + contorno. (cx,cy) é o centro; escala
+     e glow são animados pela cinemática. */
+  _desenharLogo(ctx, cx, cy, escala, glow) {
+    const txt = "MANSÃO FIGHT";
+    const now = performance.now();
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(escala, escala);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "900 70px 'Segoe UI', sans-serif";
+    try { ctx.letterSpacing = "8px"; } catch (e) {}
+
+    // 1) Relevo/sombra de base com glow de plasma roxo pulsante.
+    ctx.save();
+    ctx.shadowColor = PALETA.acento;
+    ctx.shadowBlur = 26 * glow + 14;
+    ctx.fillStyle = "#160a1e";
+    ctx.fillText(txt, 0, 6);
+    ctx.restore();
+
+    // 2) Corpo metálico carmesim (gradiente vertical com linha de bisel).
+    const grad = ctx.createLinearGradient(0, -44, 0, 44);
+    grad.addColorStop(0.0, PALETA.carmesimClaro);
+    grad.addColorStop(0.46, PALETA.carmesim);
+    grad.addColorStop(0.5, "#7a0f18");
+    grad.addColorStop(0.54, PALETA.carmesim);
+    grad.addColorStop(1.0, PALETA.carmesimEscuro);
+    ctx.fillStyle = grad;
+    ctx.fillText(txt, 0, 0);
+
+    // 3) Bisel dourado: highlight só na faixa superior das letras.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-LARGURA, -60, LARGURA * 2, 26);
+    ctx.clip();
+    ctx.fillStyle = "rgba(255,211,77,0.7)";
+    ctx.fillText(txt, 0, -1);
+    ctx.restore();
+
+    // 4) Arcos elétricos de plasma (acento) varrendo o logo.
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = PALETA.acentoClaro;
+    ctx.lineWidth = 1.6;
+    ctx.globalAlpha = Math.max(0, 0.5 + 0.5 * Math.sin(now / 120));
+    for (let a = 0; a < 2; a++) {
+      ctx.beginPath();
+      let ex = -210 + ((now / 6 + a * 200) % 420);
+      ctx.moveTo(ex, -20);
+      for (let k = 0; k < 5; k++) {
+        ex += 16;
+        ctx.lineTo(ex, -20 + Math.sin(now / 60 + k + a) * 18);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 5) Contorno escuro para "cravar" o logo no fundo.
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#1a0712";
+    ctx.strokeText(txt, 0, 0);
+
+    try { ctx.letterSpacing = "0px"; } catch (e) {}
+    ctx.textBaseline = "alphabetic";
+    ctx.restore();
+  }
+
+  /* Ícone de CHAMA animado (cursor temático à esquerda do item selecionado no
+     menu). Gota dupla (carmesim + dourado) com halo roxo pulsante. */
+  _iconeChama(ctx, x, y, s, agora) {
+    const fl = 0.5 + 0.5 * Math.sin(agora / 90);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalCompositeOperation = "lighter";
+    ctx.fillStyle = `rgba(177,92,255,${0.25 + 0.15 * fl})`;
+    ctx.beginPath();
+    ctx.arc(0, 0, s * (1.1 + 0.15 * fl), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.beginPath();
+    ctx.moveTo(0, -s * (1.1 + 0.2 * fl));
+    ctx.quadraticCurveTo(s * 0.7, -s * 0.2, 0, s * 0.9);
+    ctx.quadraticCurveTo(-s * 0.7, -s * 0.2, 0, -s * (1.1 + 0.2 * fl));
+    ctx.fillStyle = PALETA.carmesim;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.7);
+    ctx.quadraticCurveTo(s * 0.4, -s * 0.1, 0, s * 0.5);
+    ctx.quadraticCurveTo(-s * 0.4, -s * 0.1, 0, -s * 0.7);
+    ctx.fillStyle = PALETA.ouro;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* ATTRACT MODE — slideshow dos lutadores após ~10s de ociosidade. Mostra o
+     retrato (ou o sprite idle como fallback), nome, cidade e estilo, com fade
+     de entrada/saída por slide. Qualquer tecla volta ao título. */
+  _desenharAttract(ctx) {
+    const S = this.start;
+    const t = performance.now() / 1000;
+    this._desenharFundoMansao(ctx);
+    ctx.fillStyle = "rgba(6,4,12,0.5)";
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    const pers = PERSONAGENS[S.attractIdx % PERSONAGENS.length];
+    const k = S.t / START_TIMING.attractPorSlide;
+    const fade = Math.max(0, Math.min(1, Math.min(k, 1 - k) * 6));
+
+    ctx.save();
+    ctx.globalAlpha = fade;
+    const bw = 280,
+      bh = 340,
+      bx = LARGURA / 2 - bw / 2,
+      by = 70;
+    ctx.fillStyle = "#0a0712";
+    ctx.fillRect(bx - 6, by - 6, bw + 12, bh + 12);
+    const foto = this.recursos.retrato(pers);
+    if (foto) {
+      this._desenharThumb(ctx, foto, bx, by, bw, bh);
+    } else {
+      ctx.fillStyle = "#140d1f";
+      ctx.fillRect(bx, by, bw, bh);
+      const fr = this.recursos.frame(pers, "idle", 0);
+      if (fr && fr.ok) {
+        const dw = this.recursos.frameW * 1.2;
+        const dh = this.recursos.frameH * 1.2;
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(fr.img, LARGURA / 2 - dw / 2, by + bh - dh, dw, dh);
+      }
+    }
+    ctx.strokeStyle = PALETA.acento;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(bx, by, bw, bh);
+
+    const ficha = this.recursos.ficha(pers);
+    ctx.textAlign = "center";
+    ctx.shadowColor = PALETA.acento;
+    ctx.shadowBlur = 16;
+    ctx.fillStyle = PALETA.ouro;
+    ctx.font = "900 40px 'Segoe UI', sans-serif";
+    ctx.fillText(this.recursos.nome(pers).toUpperCase(), LARGURA / 2, by + bh + 48);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = PALETA.texto;
+    ctx.font = "16px 'Segoe UI', sans-serif";
+    ctx.fillText(ficha.cidade + "  ·  " + ficha.estilo, LARGURA / 2, by + bh + 74);
+    ctx.restore();
+
+    ctx.textAlign = "center";
+    ctx.fillStyle =
+      Math.floor(t * 2) % 2 === 0 ? PALETA.acentoClaro : PALETA.textoFraco;
+    ctx.font = "bold 14px 'Segoe UI', monospace";
+    ctx.fillText(
+      "— APRESENTANDO OS LUTADORES —   PRESSIONE QUALQUER TECLA",
+      LARGURA / 2,
+      ALTURA - 22,
+    );
   }
 
   // ---- Tela de configurações -----------------------------------------------
@@ -1614,39 +2139,89 @@ class Jogo {
     );
   }
 
-  // ---- Tela de seleção de modo ---------------------------------------------
+  // ---- Tela de seleção de modo (menu principal) ----------------------------
+  // Staggered reveal de BAIXO para CIMA ao entrar, cursor de chama temático no
+  // item selecionado e separador de grupos (jogo | configurações).
   _desenharModo(ctx) {
+    const now = performance.now();
+    const rev = (now - this.modoRevealT0) / 1000; // s desde a entrada na tela
     ctx.textAlign = "center";
-    ctx.fillStyle = "#ffd34d";
-    ctx.font = "bold 48px 'Segoe UI', sans-serif";
-    ctx.fillText("MODO DE JOGO", LARGURA / 2, 105);
+
+    // Título com brilho roxo pulsante.
+    ctx.save();
+    ctx.shadowColor = PALETA.acento;
+    ctx.shadowBlur = 18 + 8 * Math.sin(now / 400);
+    ctx.fillStyle = PALETA.ouro;
+    ctx.font = "900 46px 'Segoe UI', sans-serif";
+    ctx.fillText("MODO DE JOGO", LARGURA / 2, 100);
+    ctx.restore();
 
     const opcoes = [
-      { label: "1 JOGADOR", sub: "Enfrenta a inteligência artificial" },
+      { label: "1 JOGADOR", sub: "Enfrente a inteligência artificial" },
       { label: "2 JOGADORES", sub: "Partida local entre dois jogadores" },
-      { label: "⚙  CONFIGURAÇÕES", sub: "Ajuste volume e outras opções" },
+      { label: "CONFIGURAÇÕES", sub: "Ajuste volume e outras opções" },
     ];
-    let y = 205;
-    for (let i = 0; i < opcoes.length; i++) {
-      const sel = i === this.menuIndex;
-      ctx.fillStyle = sel ? "#ffd34d" : "#cfc6e0";
-      ctx.font = sel
-        ? "bold 30px 'Segoe UI', sans-serif"
-        : "24px 'Segoe UI', sans-serif";
-      ctx.fillText((sel ? "▶  " : "   ") + opcoes[i].label, LARGURA / 2, y);
-      ctx.fillStyle = sel ? "rgba(255,211,77,0.6)" : "rgba(207,198,224,0.45)";
-      ctx.font = "15px 'Segoe UI', sans-serif";
-      ctx.fillText(opcoes[i].sub, LARGURA / 2, y + 22);
-      y += 72;
+    const n = opcoes.length;
+    const baseY = 200;
+    const passo = 76;
+
+    // Separador de GRUPOS entre "2 JOGADORES" (jogo) e "CONFIGURAÇÕES".
+    const sepRev = Math.max(0, Math.min(1, (rev - 0.05) / 0.4));
+    if (sepRev > 0) {
+      const sy = baseY + 1.5 * passo + 6;
+      ctx.save();
+      ctx.globalAlpha = sepRev * 0.6;
+      const sg = ctx.createLinearGradient(LARGURA / 2 - 200, 0, LARGURA / 2 + 200, 0);
+      sg.addColorStop(0, "rgba(177,92,255,0)");
+      sg.addColorStop(0.5, PALETA.acento);
+      sg.addColorStop(1, "rgba(177,92,255,0)");
+      ctx.fillStyle = sg;
+      ctx.fillRect(LARGURA / 2 - 200, sy, 400, 2);
+      ctx.restore();
     }
 
-    ctx.fillStyle = "#9b90b5";
-    ctx.font = "16px 'Segoe UI', sans-serif";
+    for (let i = 0; i < n; i++) {
+      // O item mais EMBAIXO entra primeiro (atraso maior p/ itens de cima).
+      const atraso = (n - 1 - i) * 0.09;
+      const ap = Math.max(0, Math.min(1, (rev - atraso) / 0.28));
+      if (ap <= 0) continue;
+      const ease = 1 - Math.pow(1 - ap, 3);
+      const y = baseY + i * passo + (1 - ease) * 26;
+      const sel = i === this.menuIndex;
+
+      ctx.save();
+      ctx.globalAlpha = ease;
+      if (sel) {
+        ctx.fillStyle = "rgba(177,92,255,0.12)";
+        ctx.fillRect(LARGURA / 2 - 250, y - 28, 500, 50);
+        ctx.fillStyle = PALETA.acento;
+        ctx.fillRect(LARGURA / 2 - 250, y - 28, 4, 50); // faixa lateral
+        this._iconeChama(ctx, LARGURA / 2 - 212, y - 4, 12, now);
+      }
+      ctx.textAlign = "center";
+      ctx.fillStyle = sel ? PALETA.ouro : PALETA.texto;
+      ctx.font = sel
+        ? "900 32px 'Segoe UI', sans-serif"
+        : "bold 26px 'Segoe UI', sans-serif";
+      ctx.fillText(opcoes[i].label, LARGURA / 2, y);
+      ctx.fillStyle = sel ? PALETA.acentoClaro : "rgba(207,198,224,0.45)";
+      ctx.font = "14px 'Segoe UI', sans-serif";
+      ctx.fillText(opcoes[i].sub, LARGURA / 2, y + 22);
+      ctx.restore();
+    }
+
+    ctx.textAlign = "center";
+    ctx.fillStyle = PALETA.textoFraco;
+    ctx.font = "15px 'Segoe UI', sans-serif";
     ctx.fillText(
-      "W/S ou ↑/↓ para escolher  •  ENTER confirma  •  ESC volta",
+      "W/S ou ↑/↓ escolher  •  ENTER confirma  •  ESC volta ao título",
       LARGURA / 2,
-      468,
+      470,
     );
+    ctx.textAlign = "right";
+    ctx.fillStyle = "rgba(155,144,181,0.5)";
+    ctx.font = "12px 'Segoe UI', monospace";
+    ctx.fillText(VERSAO, LARGURA - 16, ALTURA - 14);
   }
 
   // ---- Tela de seleção de dificuldade (1 Jogador) --------------------------

@@ -42,6 +42,9 @@ body {
   display: block;
   /* Pixels nítidos ao escalar (estética retrô). */
   image-rendering: pixelated;
+  /* Jogo 100% por teclado/gamepad: esconde o cursor do sistema sobre o canvas
+     (a seleção tem cursor próprio desenhado — chama/faixa nos menus). */
+  cursor: none;
 }
 
 /* Caixa de aviso (ex.: manifest bloqueado por CORS no file://). */
