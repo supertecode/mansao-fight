@@ -102,6 +102,10 @@ const ESTADOS = {
   // THROW_TECH, é um estado TRAVADO: não é livre (o input não o interrompe) nem
   // de golpe (sem hitbox). Volta ao neutro sozinho ao fim da distância/duração.
   BACKDASH: "backdash",
+  // Especial ofensivo do P1: investida rápida para FRENTE (ESPECIAL + FRENTE).
+  // Espelha o BACKDASH (estado travado, sem hitbox próprio), mas avança contra o
+  // oponente. Encerra sozinho ao percorrer a distância/duração configurada.
+  DASH: "dash",
 };
 
 // Estados "livres": a cada quadro são re-derivados a partir do input.

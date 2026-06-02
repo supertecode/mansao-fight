@@ -85,6 +85,10 @@ class Fighter {
     // --- Backdash defensivo (ESPECIAL + TRÁS, exclusivo do personagem P2) ---
     this.backdashCooldown = 0; // s restantes até liberar outro dash (0 = pronto)
     this.backdashDur = 0; // s — duração efetiva do dash em curso (distância/vel ∨ duracao)
+
+    // --- Dash frontal / investida (ESPECIAL + FRENTE, exclusivo do P1) ------
+    this.dashFrenteCooldown = 0; // s restantes até liberar outra investida (0 = pronto)
+    this.dashFrenteDur = 0; // s — duração efetiva da investida em curso
   }
 
   // ---- Consultas ------------------------------------------------------------
@@ -227,6 +231,10 @@ class Fighter {
         // Anim dedicada se existir (assets/sprites/<p>/backdash_*.png + manifest);
         // senão reaproveita uma pose de movimento/recuo já presente no sprite.
         return fb("backdash", fb("dash", fb("run", fb("block", "walk"))));
+      case ESTADOS.DASH:
+        // Investida frontal: pose dedicada "dash" se existir; senão a corrida
+        // "run" (visual de avanço agressivo), com fallbacks finais de segurança.
+        return fb("dash", fb("run", fb("walk", "idle")));
       case ESTADOS.FIREBALL:
         return this.golpeAtual || "fireball";
       case ESTADOS.GRAB:
@@ -338,6 +346,37 @@ class Fighter {
     );
   }
 
+  /* ESPECIAL OFENSIVO (P1): investida rápida para FRENTE. ----------------------
+     Espelha iniciarBackdash, mas avança NA DIREÇÃO DO FACING (frente relativa):
+     como DASH não é estado livre, o facing fica congelado e o lutador mantém a
+     orientação correta (encarando o oponente) durante toda a corrida. Velocidade
+     constante (sem atrito — ver _fisica); encerra sozinho ao percorrer a
+     distância/duração (ver _transicoes). Não gasta barra nem tem hitbox: a
+     colisão de corpos e o clamp de mundo já tratam o encontro com o oponente/
+     paredes. i-frames opcionais reutilizam this.invencivel (como o backdash). */
+  iniciarDashFrente() {
+    const cfg = CONFIG.dashFrente;
+    const frente = this.facing; // avança para onde está olhando
+    this.irPara(ESTADOS.DASH, true);
+    this.vx = frente * cfg.vel;
+    this.dashFrenteCooldown = cfg.cooldownMs / 1000;
+    // Encerra no que vier primeiro: fechar a distância OU estourar a duração.
+    this.dashFrenteDur = Math.min(cfg.duracao, cfg.distancia / cfg.vel);
+    if (cfg.invulneravel)
+      this.invencivel = Math.max(this.invencivel, this.dashFrenteDur);
+    this.jogo.audio.pulo(); // "whoosh" da arrancada (reaproveita o som de pulo)
+  }
+
+  // Pode iniciar a investida frontal? Exclusivo do personagem configurado, só no
+  // chão e com o cooldown zerado. Não depende da barra de especial (é mobilidade).
+  podeDashFrente() {
+    return (
+      this.personagem === CONFIG.dashFrente.exclusivoPersonagem &&
+      this.noChao &&
+      this.dashFrenteCooldown <= 0
+    );
+  }
+
   ganharEspecial(qtd) {
     this.especial = Math.min(CONFIG.especial.max, this.especial + qtd);
   }
@@ -431,6 +470,7 @@ class Fighter {
     if (this.janelaCancel > 0) this.janelaCancel -= dt;
     if (this.invencivel > 0) this.invencivel -= dt;
     if (this.backdashCooldown > 0) this.backdashCooldown -= dt;
+    if (this.dashFrenteCooldown > 0) this.dashFrenteCooldown -= dt;
     if (this.comboResetTimer > 0) {
       this.comboResetTimer -= dt;
       if (this.comboResetTimer <= 0) {
@@ -542,6 +582,21 @@ class Fighter {
         if (this.podeBackdash()) this.iniciarBackdash();
         return;
       }
+      // ESPECIAL + FRENTE = investida/dash frontal (P1). Espelha o backdash, mas
+      // na direção do FACING. Checado ANTES do super pelo mesmo motivo: segurar
+      // a direção de AVANÇO reserva o botão "especial" para a investida, sem
+      // gastar a barra cheia por engano. Distinguido por direção (frente) — não
+      // conflita com o super (sem direção) nem com o backdash (trás/outro pers.).
+      const segurandoFrente =
+        (this.facing === 1 && querDir) || (this.facing === -1 && querEsq);
+      const querDashFrente =
+        acoes.includes("especial") &&
+        segurandoFrente &&
+        this.personagem === CONFIG.dashFrente.exclusivoPersonagem;
+      if (querDashFrente) {
+        if (this.podeDashFrente()) this.iniciarDashFrente();
+        return;
+      }
       if (
         acoes.includes("especial") &&
         this.especial >= CONFIG.especial.custo &&
@@ -634,14 +689,15 @@ class Fighter {
     if (
       this.estado !== ESTADOS.WALK &&
       this.estado !== ESTADOS.JUMP &&
-      this.estado !== ESTADOS.BACKDASH
+      this.estado !== ESTADOS.BACKDASH &&
+      this.estado !== ESTADOS.DASH
     ) {
       // No chão e fora do andar/dash: desacelera rápido (empurrões, hit stun…).
       this.vx *= Math.pow(0.0008, dt);
       if (Math.abs(this.vx) < 4) this.vx = 0;
     }
-    // BACKDASH: velocidade constante — o movimento é encerrado por _transicoes
-    // (distância/duração), não pelo atrito. Mantém o recuo nítido e previsível.
+    // BACKDASH/DASH: velocidade constante — o movimento é encerrado por
+    // _transicoes (distância/duração), não pelo atrito. Recuo/investida nítidos.
     // JUMP: sem atrito passivo — o input controla vx diretamente.
     // Momentum inicial (sem tecla pressionada) é preservado até o pouso.
 
@@ -725,6 +781,16 @@ class Fighter {
         // Encerra o dash ao percorrer a distância/duração (o que vier primeiro,
         // já resolvido em backdashDur) e retorna ao neutro, zerando o impulso.
         if (this.estadoTempo >= this.backdashDur) {
+          this.vx = 0;
+          this.irPara(ESTADOS.IDLE, true);
+        }
+        break;
+      case ESTADOS.DASH:
+        // Encerra a investida ao percorrer a distância/duração (resolvido em
+        // dashFrenteDur) e retorna ao NEUTRO, zerando o impulso. Colisões com o
+        // oponente/paredes durante o trajeto já são tratadas pela separação de
+        // corpos e pelo clamp de mundo (não atravessa nada).
+        if (this.estadoTempo >= this.dashFrenteDur) {
           this.vx = 0;
           this.irPara(ESTADOS.IDLE, true);
         }

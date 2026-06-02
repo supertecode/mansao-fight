@@ -189,10 +189,37 @@ const CONFIG = {
   },
 
   // --- Projéteis ------------------------------------------------------------
+  // vel = velocidade horizontal (px/s) em LINHA RETA (sem gravidade).
   projeteis: {
     fireball: { dano: 9, vel: 430, cor: "#5cd6ff", raio: 18 },
     special: { dano: 14, vel: 500, cor: "#ff7a3c", raio: 20 }, // p2 agachado
     super: { dano: 22, vel: 560, cor: "#ffe24d", raio: 30 }, // golpe de barra cheia
+  },
+
+  /* --- OVERRIDE DE PROJÉTIL POR PERSONAGEM (sprite) -------------------------
+     Mescla campo a campo SOBRE o tipo base de CONFIG.projeteis (mesma filosofia
+     de montarGolpes): só o personagem listado recebe o comportamento especial,
+     todos os outros continuam usando o projétil padrão (reta). Por isso a
+     fireball PARABÓLICA é EXCLUSIVA do P1 sem tocar em P2/P3.
+
+     PARÁBOLA: quando "gravidade" > 0, o projétil deixa de andar em linha reta e
+     passa a ter velocidade vertical inicial "vy" (negativo = para cima) somada a
+     uma aceleração "gravidade" por segundo — descrevendo um arco. "vx" define a
+     velocidade horizontal própria do arco (se ausente, cai para "vel"). O sentido
+     (esquerda/direita) é aplicado em runtime conforme o facing do lutador.
+     Ajuste fino de TUDO aqui: dano, vx, vy, gravidade e tempoVida. */
+  projetilPorPersonagem: {
+    p1: {
+      fireball: {
+        dano: 10, // dano do projétil (mantém o sistema de dano atual)
+        vx: 380, // velocidade HORIZONTAL do arco (px/s)
+        vy: -540, // velocidade VERTICAL inicial (px/s; negativo = sobe)
+        gravidade: 1400, // px/s² puxando o projétil para baixo (curva a parábola)
+        tempoVida: 2.2, // s até sumir sozinho (rede de segurança além das bordas)
+        cor: "#5cd6ff",
+        raio: 18,
+      },
+    },
   },
 
   // --- Barra de especial ----------------------------------------------------
@@ -250,6 +277,27 @@ const CONFIG = {
     duracao: 0.26, // s — teto de tempo (encerra mesmo sem fechar a distância)
     cooldownMs: 550, // ms entre dois dashes (0 = sem cooldown)
     invulneravel: true, // i-frames durante o dash (esquiva de verdade)
+  },
+
+  /* --- ESPECIAL OFENSIVO: DASH FRONTAL / INVESTIDA (FRENTE + ESPECIAL) ------
+     Contraparte AGRESSIVA do backdash, EXCLUSIVA do personagem P1. Acionado por
+     ESPECIAL + FRENTE (direção relativa ao facing: olhando p/ direita, "frente" é
+     direita; olhando p/ esquerda, "frente" é esquerda). O lutador AVANÇA rápido
+     contra o oponente percorrendo uma distância significativa, claramente mais
+     veloz que correr (velCorrer=290). NÃO consome a barra de especial (é
+     mobilidade, não o super-projétil) e NÃO tem hitbox próprio: ao encostar no
+     oponente, a SEPARAÇÃO DE CORPOS padrão (_resolverColisaoCorpos) já o empurra,
+     e o clamp de mundo (_fisica) impede atravessar paredes/limites — reaproveitando
+     toda a colisão existente. Para ANIMAÇÃO PRÓPRIA: adicione
+     assets/sprites/<p>/dash_*.png + "animacoes.dash" no manifest; sem isso,
+     reaproveita a pose "run" (corrida). Todos os parâmetros são configuráveis. */
+  dashFrente: {
+    exclusivoPersonagem: "p1", // só o P1 executa a investida
+    vel: 760, // px/s — investida agressiva, acima de correr(290)
+    distancia: 280, // px percorridos antes de encerrar (alcance significativo)
+    duracao: 0.42, // s — teto de tempo (encerra mesmo sem fechar a distância)
+    cooldownMs: 600, // ms entre duas investidas (0 = sem cooldown)
+    invulneravel: false, // i-frames durante a investida (ofensivo: padrão sem)
   },
 
   // --- Game feel (juice) ----------------------------------------------------
