@@ -58,7 +58,7 @@ No modo 1 jogador o oponente é controlado por **IA** com 3 dificuldades.
 | **P2** | Vítor De Sordi | Santana do Itararé — PR | Luta Deitado           |
 | **P3** | Erick Barbosa  | Iguape — SP             | Otaku Gamer            |
 
-Mais 5 arenas selecionáveis (UTFPR, Mansão Broxa, Arena do Joia, Cavan77,
+Mais 5 arenas selecionáveis (UTFPR, Mansão, Arena do Joia, Cavan77,
 Quarto do Pit) + opção de mapa aleatório.
 
 ---
