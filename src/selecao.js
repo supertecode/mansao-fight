@@ -156,6 +156,19 @@ const CONFIGS = [
       if (jogo.audio.master) jogo.audio.master.gain.value = v;
     },
   },
+  {
+    id: "crt",
+    label: "Filtro CRT",
+    tipo: "toggle",
+    get: () => CONFIG.video.crt,
+    set: (v) => {
+      CONFIG.video.crt = v;
+    },
+    aplicar: (v, jogo) => {
+      // Liga/desliga o filtro CRT global (todas as telas) em tempo real.
+      jogo.crt = v;
+    },
+  },
   // ── Adicione novas configurações abaixo ──────────────────────────────────
 ];
 

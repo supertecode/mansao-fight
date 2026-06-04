@@ -64,16 +64,14 @@ class Jogo {
     this.mapaEscolhido = null; // descritor do mapa confirmado
     this.vs = null; // estado da VS Screen enquanto em TELAS.VS
     this.select = null; // estado da tela SELECT (cursores, timers, efeitos)
-    this.crt = true; // filtro CRT (scanlines + vinheta) — alternável com F2
+    // Filtro CRT GLOBAL (scanlines + vinheta) aplicado em TODAS as telas.
+    // Fonte de verdade: CONFIG.video.crt — só alternável no menu de Configurações.
+    this.crt = CONFIG.video.crt;
 
     window.addEventListener("keydown", (e) => {
       if (e.code === "F1") {
         e.preventDefault();
         this.debug = !this.debug;
-      }
-      if (e.code === "F2") {
-        e.preventDefault();
-        this.crt = !this.crt;
       }
     });
   }
@@ -446,12 +444,14 @@ class Jogo {
     ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, LARGURA, ALTURA);
 
-    // Scanlines sutis para reforçar o tom retrô.
-    ctx.save();
-    ctx.globalAlpha = 0.07;
-    ctx.fillStyle = "#000000";
-    for (let y = 0; y < ALTURA; y += 2) ctx.fillRect(0, y, LARGURA, 1);
-    ctx.restore();
+    // Scanlines sutis para reforçar o tom retrô (respeita o filtro CRT global).
+    if (this.crt) {
+      ctx.save();
+      ctx.globalAlpha = 0.07;
+      ctx.fillStyle = "#000000";
+      for (let y = 0; y < ALTURA; y += 2) ctx.fillRect(0, y, LARGURA, 1);
+      ctx.restore();
+    }
 
     ctx.save();
     ctx.globalAlpha = alpha;
@@ -520,7 +520,7 @@ class Jogo {
   }
 
   // "Qualquer tecla" (teclado, ENTER/ESC ou gamepad), ignorando toggles globais
-  // (F1 debug, F2 CRT, etc.) para que eles não pulem a intro nem avancem a tela.
+  // (F1 debug, teclas de função, etc.) para que não pulem a intro nem avancem a tela.
   _algumInput(gp) {
     const borda = this.entrada.bordas.some((c) => !START_IGNORAR_TECLAS.has(c));
     return (
@@ -1396,6 +1396,7 @@ class Jogo {
       this.p2.desenhar(ctx, this.debug);
       this.particulas.desenhar(ctx);
       ctx.restore();
+      if (this.crt) this._scanlines(ctx); // filtro CRT global sobre a arena
       this._desenharVitoria(ctx);
       return;
     }
@@ -1430,6 +1431,9 @@ class Jogo {
       ctx.restore();
     }
     ctx.restore();
+
+    // Filtro CRT global sobre o mundo (HUD/anúncios/pause ficam nítidos acima).
+    if (this.crt) this._scanlines(ctx);
 
     // HUD e textos centrais (fora do shake).
     this._desenharHUD(ctx);
@@ -1779,7 +1783,7 @@ class Jogo {
       ctx.fillRect(0, 0, LARGURA, ALTURA);
     }
 
-    // ---- CRT: scanlines + vinheta (alternável com F2) ----
+    // ---- CRT: scanlines + vinheta (alternável nas Configurações) ----
     this._crtOverlay(ctx);
 
     // ---- Transição de SAÍDA p/ o menu: clarão que sobe e segura até o corte ----
@@ -1791,7 +1795,7 @@ class Jogo {
   }
 
   /* Filtro CRT compartilhado por todas as telas de menu: scanlines leves +
-     vinheta radial. Alternável com F2 (this.crt). */
+     vinheta radial. Alternável no menu de Configurações (this.crt). */
   _crtOverlay(ctx) {
     if (!this.crt) return;
     this._scanlines(ctx);
@@ -2505,7 +2509,7 @@ class Jogo {
      Regiões: [topo] título + contador de ficha; [esquerda] painel P1 (azul);
      [direita] painel P2/CPU (vermelho); [centro] grade de lutadores com dois
      cursores; [rodapé] dicas + indicador de espelho. Overlays: cortinas de
-     entrada, selo "PRONTOS!", scanlines/vinheta (CRT alternável com F2).
+     entrada, selo "PRONTOS!", scanlines/vinheta (CRT alternável nas Configurações).
      ========================================================================= */
 
   // Imagem completa do estágio de origem de um personagem (ao fundo do preview).
@@ -2995,7 +2999,7 @@ class Jogo {
       }
     }
 
-    // Filtro CRT (alternável com F2): scanlines + vinheta.
+    // Filtro CRT (alternável nas Configurações): scanlines + vinheta.
     if (this.crt) {
       this._scanlines(ctx);
       const vg = ctx.createRadialGradient(
@@ -3092,8 +3096,8 @@ class Jogo {
     ctx.font = "13px 'Segoe UI', sans-serif";
     const dica =
       this.modo === "2p"
-        ? "P1: WASD + F   •   P2: ← ↑ → ↓ + J   •   ESC cancela/volta   •   F2 CRT"
-        : "WASD para mover   •   F / ENTER confirma   •   ESC volta   •   F2 CRT";
+        ? "P1: WASD + F   •   P2: ← ↑ → ↓ + J   •   ESC cancela/volta"
+        : "WASD para mover   •   F / ENTER confirma   •   ESC volta";
     ctx.fillText(dica, LARGURA / 2, ALTURA - 16);
 
     this._overlaySelect(ctx, agora);
@@ -3268,7 +3272,7 @@ class Jogo {
       ALTURA - 18,
     );
 
-    this._scanlines(ctx);
+    if (this.crt) this._scanlines(ctx);
   }
 
   // ---- VS SCREEN -----------------------------------------------------------
@@ -3422,7 +3426,7 @@ class Jogo {
       ctx.restore();
     }
 
-    this._scanlines(ctx);
+    if (this.crt) this._scanlines(ctx);
 
     // 6) FLASH BRANCO final (ref. SF2): 2–3 frames antes de revelar o estágio.
     if (vs.t >= total - T.flash) {

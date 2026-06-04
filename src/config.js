@@ -330,6 +330,11 @@ const CONFIG = {
     volumeUI: 0.7, // 0..1 — volume dos efeitos de interface (menus)
   },
 
+  // --- Vídeo / pós-processamento --------------------------------------------
+  video: {
+    crt: true, // filtro CRT GLOBAL (scanlines + vinheta) em TODAS as telas
+  },
+
   /* --- IA (3 dificuldades) -------------------------------------------------
      intervalo     = tempo médio (s) entre decisões (menor = reage mais)
      agressao      = chance de atacar quando está no alcance
