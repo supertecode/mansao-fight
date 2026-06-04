@@ -8,6 +8,8 @@ Lutadores, atributos, golpes, animações e arenas são **dirigidos por dados**
 (arquivos JSON em `assets/data/`): dá para balancear o jogo e adicionar conteúdo
 sem mexer na lógica.
 
+![Gameplay](assets/demo/gif_media/gif.gif)
+
 ---
 
 ## ▶️ Como jogar
