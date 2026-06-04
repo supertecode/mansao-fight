@@ -791,6 +791,9 @@ class Jogo {
       ) {
         houveInput = true;
         this._confirmarSelect("p1");
+        // Em 1p, o mesmo keypress não pode vazar para a fase 2 (seleção da CPU)
+        // neste mesmo frame. Reseta o timer e encerra o update deste tick.
+        if (this.modo === "1p") { S.timer = TEMPO_SELECT; return; }
       }
     }
 
@@ -821,23 +824,20 @@ class Jogo {
         else if (!this.confirmado.p2) this._confirmarSelect("p2");
       }
     } else {
-      // 1 Player: a CPU acompanha um lutador diferente do P1 até ele confirmar.
-      if (!this.confirmado.p1) {
-        const idxP1 = this._persDoCursor("p1");
-        const alvo = SELECT_CELULAS.findIndex(
-          (c) => c.tipo === "pers" && PERSONAGENS.indexOf(c.pers) !== idxP1,
-        );
-        if (alvo >= 0 && alvo !== S.cursor.p2) {
-          S.prevCursor.p2 = S.cursor.p2;
-          S.cursor.p2 = alvo;
-          S.trans.p2 = 0;
+      // 1 Player fase 2: P1 já confirmou e agora escolhe o personagem da CPU.
+      if (this.confirmado.p1 && !this.confirmado.p2) {
+        if (this._moverCursorSelect("p2", "KeyA", "KeyD", "KeyW", "KeyS", gp)) {
+          houveInput = true;
+          this.somUI.tocar("personagem");
         }
-        this.escolha.p2 = this._persDoCursor("p2");
-      } else if (!this.confirmado.p2) {
-        // P1 confirmou: CPU "trava" no seu lutador.
-        this.confirmado.p2 = true;
-        this.escolha.p2 = this._persDoCursor("p2");
-        S.flash.p2 = 0.45;
+        if (
+          this.entrada.borda(TECLAS.p1.soco) ||
+          this.entrada.confirmar ||
+          (gp && gp.confirm)
+        ) {
+          houveInput = true;
+          this._confirmarSelect("p2");
+        }
       }
     }
 
@@ -848,8 +848,7 @@ class Jogo {
       S.timer = Math.max(0, S.timer - dt);
       if (S.timer === 0) {
         if (!this.confirmado.p1) this._confirmarSelect("p1", true);
-        if (this.modo === "2p" && !this.confirmado.p2)
-          this._confirmarSelect("p2", true);
+        else if (!this.confirmado.p2) this._confirmarSelect("p2", true);
       }
     }
 
@@ -2568,9 +2567,10 @@ class Jogo {
     ctx.textAlign = "center";
     ctx.font = "bold 16px 'Segoe UI', sans-serif";
     const titulo = slot === "p1" ? "P1" : ehCPU ? "CPU" : "P2";
+    const cpuEscolhendo = ehCPU && this.confirmado.p1 && !this.confirmado.p2;
     let rotulo;
     if (confirmado) rotulo = `${titulo} — PRONTO!`;
-    else if (ehCPU) rotulo = `${titulo} — AGUARDE`;
+    else if (ehCPU && !cpuEscolhendo) rotulo = `${titulo} — AGUARDE`;
     else rotulo = `${titulo} — ESCOLHA SEU LUTADOR`;
     ctx.fillStyle = confirmado ? "#36d23a" : tema.cor;
     if (!confirmado && !blink) ctx.fillStyle = tema.brilho;
@@ -2978,7 +2978,11 @@ class Jogo {
     ctx.shadowBlur = 24 * pulso;
     ctx.fillStyle = SELECT_TEMA.ouro;
     ctx.font = "900 40px 'Segoe UI', sans-serif";
-    ctx.fillText("ESCOLHA SEU LUTADOR", LARGURA / 2, 56);
+    const tituloSelect =
+      this.modo === "1p" && this.confirmado.p1 && !this.confirmado.p2
+        ? "ESCOLHA O OPONENTE"
+        : "ESCOLHA SEU LUTADOR";
+    ctx.fillText(tituloSelect, LARGURA / 2, 56);
     ctx.restore();
 
     // Contador de "ficha" (centro, abaixo do título). Pisca em vermelho no fim.
