@@ -404,9 +404,7 @@ const START_TIMING = {
 };
 // Teclas que NÃO contam como "qualquer tecla" (toggles globais de debug/CRT,
 // teclas do navegador) — assim F1/F2 não pulam a intro nem avançam o título.
-const START_IGNORAR_TECLAS = new Set([
-  "F1", "F2", "F3", "F5", "F11", "F12",
-]);
+const START_IGNORAR_TECLAS = new Set(["F1", "F2", "F3", "F5", "F11", "F12"]);
 
 /* IDENTIDADE VISUAL — paleta de 3 cores dominantes + 1 acento neon (roxo
    elétrico). Centralizada para que logo, menu e atmosfera fiquem coerentes. */
@@ -421,8 +419,8 @@ const PALETA = {
   texto: "#cfc6e0",
   textoFraco: "#9b90b5",
 };
-const VERSAO = "v0.3.0";
-const CREDITOS = "© 2026 · MANSÃO FIGHT · SAMUEL vs VITOR";
+const VERSAO = "v0.3.1";
+const CREDITOS = "© 2026 · MANSÃO FIGHT";
 
 /* FRAME DATA POR PERSONAGEM — fonte de balanceamento = manifest.json.
    Cada Fighter monta seu próprio conjunto de golpes a partir de
@@ -440,4 +438,3 @@ function montarGolpes(golpesManifest) {
   }
   return out;
 }
-

@@ -14,6 +14,7 @@ function colideAABB(a, b) {
    =========================================================================== */
 
 const TELAS = {
+  APRESENTA: "apresenta", // intro do estúdio — antes do menu inicial
   START: "start",
   MODO: "modo",
   DIFICULDADE: "dificuldade",

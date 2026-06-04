@@ -85,7 +85,7 @@ class Recursos {
     this.mapa = null;
   }
 
-  async precarregar() {
+  async precarregar(onProgresso) {
     const tarefas = [];
 
     // Retratos para a seleção de personagem. O ARQUIVO vem do manifest
@@ -132,7 +132,18 @@ class Recursos {
         }
       }
     }
-    await Promise.all(tarefas);
+    // Rastreia progresso: cada tarefa concluída chama onProgresso(0→1).
+    let concluidas = 0;
+    const total = tarefas.length;
+    await Promise.all(
+      tarefas.map((t) =>
+        t.then((r) => {
+          concluidas++;
+          if (onProgresso) onProgresso(concluidas / total);
+          return r;
+        }),
+      ),
+    );
 
     // ESCALONABILIDADE DAS ANIMAÇÕES: conta quantos quadros REALMENTE carregaram,
     // numa sequência contígua a partir do índice 0 ("framesReais"). A animação

@@ -39,7 +39,7 @@ class CatalogoMapas {
     this.mapas = [];
   }
 
-  async descobrir() {
+  async descobrir(onProgresso) {
     // Metadados opcionais por arquivo (nome de exibição), vindos do manifest.
     const meta = {};
     if (Array.isArray(this.manifest.mapas)) {
@@ -54,10 +54,12 @@ class CatalogoMapas {
     let faltasSeguidas = 0;
 
     // (a) Varredura por padrão arena<N>.png — descoberta automática real.
+    let probeCount = 0;
     for (let i = 1; i <= MAX_PROBE && faltasSeguidas <= MAX_GAP; i++) {
       const arquivo = `arena${i}.png`;
       const caminho = `assets/mapas/${arquivo}`;
       const res = await carregarImagem(caminho);
+      probeCount++;
       if (res.ok) {
         faltasSeguidas = 0;
         vistos.add(arquivo);
@@ -67,6 +69,8 @@ class CatalogoMapas {
       } else {
         faltasSeguidas++;
       }
+      // Progresso aproximado: cada tentativa avança; para 5 mapas + 2 falhas ≈ 7 probes.
+      if (onProgresso) onProgresso(Math.min(0.9, probeCount / (probeCount + MAX_GAP)));
     }
 
     // (b) Inclui mapas declarados no manifest que NÃO seguem o padrão arena<N>.
@@ -83,6 +87,7 @@ class CatalogoMapas {
     }
 
     this.mapas = achados;
+    if (onProgresso) onProgresso(1.0);
     return this.mapas;
   }
 

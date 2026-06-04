@@ -16,7 +16,8 @@ class Jogo {
     this.somUI.precarregar();
     this.debug = false;
 
-    this.tela = TELAS.START;
+    this.tela = TELAS.APRESENTA;
+    this.apresenta = { t: 0, fase: "fadein" }; // intro do estúdio
     this.start = this._estadoStartInicial(); // estado da tela-título (intro/attract)
     this.modoRevealT0 = 0; // marco temporal do staggered reveal do menu MODO
     this.projeteis = [];
@@ -199,9 +200,9 @@ class Jogo {
 
   // ---- Loop principal -------------------------------------------------------
   rodar() {
-    // Tenta tocar a música do menu assim que o jogo inicia.
-    // Se o navegador bloquear (autoplay policy), o MusicaFX reativa no 1º gesto.
-    this.musica.tocar("menu");
+    // Música começa ao chegar na tela START (após a intro do estúdio).
+    // Se por algum motivo não houver APRESENTA, toca imediatamente.
+    if (this.tela !== TELAS.APRESENTA) this.musica.tocar("menu");
 
     let anterior = performance.now();
     const passo = (agora) => {
@@ -222,6 +223,12 @@ class Jogo {
   }
 
   _atualizar(dt) {
+    // --- Intro do estúdio ---
+    if (this.tela === TELAS.APRESENTA) {
+      this._atualizarApresenta(dt);
+      this.entrada.limparPendentes();
+      return;
+    }
     // --- Telas de menu ---
     if (this.tela === TELAS.START) {
       this._atualizarStart(dt);
@@ -358,6 +365,97 @@ class Jogo {
   }
 
   /* =========================================================================
+     TELA "MANSÃO STUDIOS APRESENTA" — intro do estúdio antes do menu.
+     Fases: fadein → hold → fadeout → (transição para START).
+     Pulável a qualquer momento (após 0.5 s para evitar clique acidental).
+     ========================================================================= */
+  _atualizarApresenta(dt) {
+    const A = this.apresenta;
+    const T_FADEIN = 0.7,
+      T_HOLD = 4,
+      T_FADEOUT = 0.7;
+    A.t += dt;
+
+    const gp = this.gamepad.ler();
+    // Só permite skip após 0.5 s (evita pular por tecla pressionada antes).
+    const tecla = A.t > 0.5 && this._algumInput(gp);
+
+    if (A.fase === "fadein") {
+      if (A.t >= T_FADEIN) {
+        A.fase = "hold";
+        A.t = 0;
+      }
+      if (tecla) {
+        A.fase = "fadeout";
+        A.t = 0;
+      }
+      return;
+    }
+    if (A.fase === "hold") {
+      if (A.t >= T_HOLD || tecla) {
+        A.fase = "fadeout";
+        A.t = 0;
+      }
+      return;
+    }
+    if (A.fase === "fadeout") {
+      if (A.t >= T_FADEOUT) {
+        this.apresenta = { t: 0, fase: "fadein" }; // reseta para segurança
+        this.tela = TELAS.START;
+        this.musica.tocar("menu"); // inicia música do menu agora
+      }
+      return;
+    }
+  }
+
+  _desenharApresenta(ctx) {
+    const A = this.apresenta;
+    const T_FADEIN = 0.7,
+      T_FADEOUT = 0.7;
+
+    let alpha = 1;
+    if (A.fase === "fadein") alpha = Math.min(1, A.t / T_FADEIN);
+    else if (A.fase === "fadeout") alpha = Math.max(0, 1 - A.t / T_FADEOUT);
+
+    // Fundo preto absoluto (sem textura de jogo).
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, LARGURA, ALTURA);
+
+    // Scanlines sutis para reforçar o tom retrô.
+    ctx.save();
+    ctx.globalAlpha = 0.07;
+    ctx.fillStyle = "#000000";
+    for (let y = 0; y < ALTURA; y += 2) ctx.fillRect(0, y, LARGURA, 1);
+    ctx.restore();
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.textAlign = "center";
+    ctx.imageSmoothingEnabled = false;
+
+    // Linha principal — "— MANSÃO STUDIOS —"
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 26px 'Courier New', monospace";
+    try {
+      ctx.letterSpacing = "4px";
+    } catch (e) {}
+    ctx.fillText("— MANSÃO STUDIOS —", LARGURA / 2, ALTURA / 2 - 14);
+
+    // Subtítulo — "APRESENTA"
+    ctx.fillStyle = "rgba(255,255,255,0.82)";
+    ctx.font = "bold 17px 'Courier New', monospace";
+    try {
+      ctx.letterSpacing = "7px";
+    } catch (e) {}
+    ctx.fillText("APRESENTA", LARGURA / 2, ALTURA / 2 + 18);
+    try {
+      ctx.letterSpacing = "0px";
+    } catch (e) {}
+
+    ctx.restore();
+  }
+
+  /* =========================================================================
      TELA-TÍTULO (START) — máquina de estados da abertura.
      Fases: "intro" (cinemática) → "titulo" (PRESS ANY KEY) → "attract" (demo de
      retratos após ociosidade) → "saindo" (transição para o menu). Qualquer
@@ -412,7 +510,8 @@ class Jogo {
     const S = this.start;
     const T = START_TIMING;
     S.t += dt;
-    if (S.flashImpacto > 0) S.flashImpacto = Math.max(0, S.flashImpacto - dt * 3);
+    if (S.flashImpacto > 0)
+      S.flashImpacto = Math.max(0, S.flashImpacto - dt * 3);
     const gp = this.gamepad.ler();
     const tecla = this._algumInput(gp);
 
@@ -699,7 +798,13 @@ class Jogo {
       // --- P2: setas + Soco (J). ---
       if (!this.confirmado.p2) {
         if (
-          this._moverCursorSelect("p2", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown")
+          this._moverCursorSelect(
+            "p2",
+            "ArrowLeft",
+            "ArrowRight",
+            "ArrowUp",
+            "ArrowDown",
+          )
         ) {
           houveInput = true;
           this.somUI.tocar("personagem");
@@ -771,18 +876,34 @@ class Jogo {
 
     // Navegação com WRAP (teclado WASD/setas + D-pad/analógico do gamepad).
     let moveu = false;
-    if (this.entrada.borda("KeyA") || this.entrada.borda("ArrowLeft") || gp.left)
+    if (
+      this.entrada.borda("KeyA") ||
+      this.entrada.borda("ArrowLeft") ||
+      gp.left
+    )
       moveu = sel.mover(-1, 0) || moveu;
-    if (this.entrada.borda("KeyD") || this.entrada.borda("ArrowRight") || gp.right)
+    if (
+      this.entrada.borda("KeyD") ||
+      this.entrada.borda("ArrowRight") ||
+      gp.right
+    )
       moveu = sel.mover(1, 0) || moveu;
     if (this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp") || gp.up)
       moveu = sel.mover(0, -1) || moveu;
-    if (this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown") || gp.down)
+    if (
+      this.entrada.borda("KeyS") ||
+      this.entrada.borda("ArrowDown") ||
+      gp.down
+    )
       moveu = sel.mover(0, 1) || moveu;
     if (moveu) this.somUI.tocar("navegar"); // sfx de mover cursor (sfx_cursor_move)
 
     // Confirmar: ENTER/Espaço, A do gamepad ou o soco do P1 (F).
-    if (this.entrada.confirmar || gp.confirm || this.entrada.borda(TECLAS.p1.soco)) {
+    if (
+      this.entrada.confirmar ||
+      gp.confirm ||
+      this.entrada.borda(TECLAS.p1.soco)
+    ) {
       this.somUI.tocar("confirmar"); // sfx de confirmar (sfx_confirm)
       // resolverEscolha() sorteia um mapa real quando o cursor está em "ALEATÓRIO".
       this._confirmarMapa(sel.resolverEscolha());
@@ -806,7 +927,10 @@ class Jogo {
 
     // Ao fim de TODA a linha do tempo, revela o estágio e começa o round.
     const total =
-      VS_TIMING.entrada + VS_TIMING.confronto + VS_TIMING.round + VS_TIMING.flash;
+      VS_TIMING.entrada +
+      VS_TIMING.confronto +
+      VS_TIMING.round +
+      VS_TIMING.flash;
     if (vs.t >= total) this._comecarLutaAposVS();
   }
 
@@ -1025,7 +1149,13 @@ class Jogo {
     // Feedback de "tech break": faíscas no ponto médio, som e um tremor leve.
     const mx = (a.x + b.x) / 2;
     const my = CHAO_Y - 110;
-    this.particulas.faiscas(mx, my, CONFIG.particulas.faiscasBloqueio + 4, "#ffe9a8", 200);
+    this.particulas.faiscas(
+      mx,
+      my,
+      CONFIG.particulas.faiscasBloqueio + 4,
+      "#ffe9a8",
+      200,
+    );
     this.audio.bloqueio();
     this.hitStop = Math.max(this.hitStop, 0.05);
     this._tremor(CONFIG.gameFeel.shakeHit * 0.5);
@@ -1189,6 +1319,12 @@ class Jogo {
   _desenhar() {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, LARGURA, ALTURA);
+
+    // Intro do estúdio (tela preta minimalista, antes de qualquer menu).
+    if (this.tela === TELAS.APRESENTA) {
+      this._desenharApresenta(ctx);
+      return;
+    }
 
     // Telas de menu (sem shake da luta). Fundo unificado do "salão da mansão".
     if (this.tela === TELAS.START) {
@@ -1544,9 +1680,13 @@ class Jogo {
       ctx.textAlign = "center";
       ctx.fillStyle = PALETA.acentoClaro;
       ctx.font = "bold 22px 'Segoe UI', sans-serif";
-      try { ctx.letterSpacing = "6px"; } catch (e) {}
-      ctx.fillText("SEM PIEDADE · SEM REGRAS · SÓ LUTA", 0, 0);
-      try { ctx.letterSpacing = "0px"; } catch (e) {}
+      try {
+        ctx.letterSpacing = "6px";
+      } catch (e) {}
+      ctx.fillText("O JOGO DE LUTA DA MANSÃO", 0, 0);
+      try {
+        ctx.letterSpacing = "0px";
+      } catch (e) {}
       ctx.restore();
     }
 
@@ -1603,8 +1743,12 @@ class Jogo {
     if (!this.crt) return;
     this._scanlines(ctx);
     const vg = ctx.createRadialGradient(
-      LARGURA / 2, ALTURA / 2, ALTURA * 0.34,
-      LARGURA / 2, ALTURA / 2, ALTURA * 0.82,
+      LARGURA / 2,
+      ALTURA / 2,
+      ALTURA * 0.34,
+      LARGURA / 2,
+      ALTURA / 2,
+      ALTURA * 0.82,
     );
     vg.addColorStop(0, "rgba(0,0,0,0)");
     vg.addColorStop(1, "rgba(0,0,0,0.62)");
@@ -1683,7 +1827,11 @@ class Jogo {
     ctx.translate(sway * 0.6, 0);
     ctx.fillStyle = "rgba(30,22,46,0.55)";
     ctx.fillRect(-20, 150, LARGURA + 40, 230);
-    for (const [qx, qy] of [[120, 210], [LARGURA - 150, 230], [250, 300]]) {
+    for (const [qx, qy] of [
+      [120, 210],
+      [LARGURA - 150, 230],
+      [250, 300],
+    ]) {
       ctx.save();
       ctx.translate(qx, qy);
       ctx.rotate(Math.sin(qx) * 0.06); // torto, mas determinístico
@@ -1794,7 +1942,9 @@ class Jogo {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.font = "900 70px 'Segoe UI', sans-serif";
-    try { ctx.letterSpacing = "8px"; } catch (e) {}
+    try {
+      ctx.letterSpacing = "8px";
+    } catch (e) {}
 
     // 1) Relevo/sombra de base com glow de plasma roxo pulsante.
     ctx.save();
@@ -1846,7 +1996,9 @@ class Jogo {
     ctx.strokeStyle = "#1a0712";
     ctx.strokeText(txt, 0, 0);
 
-    try { ctx.letterSpacing = "0px"; } catch (e) {}
+    try {
+      ctx.letterSpacing = "0px";
+    } catch (e) {}
     ctx.textBaseline = "alphabetic";
     ctx.restore();
   }
@@ -1924,11 +2076,19 @@ class Jogo {
     ctx.shadowBlur = 16;
     ctx.fillStyle = PALETA.ouro;
     ctx.font = "900 40px 'Segoe UI', sans-serif";
-    ctx.fillText(this.recursos.nome(pers).toUpperCase(), LARGURA / 2, by + bh + 48);
+    ctx.fillText(
+      this.recursos.nome(pers).toUpperCase(),
+      LARGURA / 2,
+      by + bh + 48,
+    );
     ctx.shadowBlur = 0;
     ctx.fillStyle = PALETA.texto;
     ctx.font = "16px 'Segoe UI', sans-serif";
-    ctx.fillText(ficha.cidade + "  ·  " + ficha.estilo, LARGURA / 2, by + bh + 74);
+    ctx.fillText(
+      ficha.cidade + "  ·  " + ficha.estilo,
+      LARGURA / 2,
+      by + bh + 74,
+    );
     ctx.restore();
 
     ctx.textAlign = "center";
@@ -2005,11 +2165,7 @@ class Jogo {
 
     ctx.fillStyle = "#9b90b5";
     ctx.font = "18px 'Segoe UI', sans-serif";
-    ctx.fillText(
-      "O progresso da luta será perdido.",
-      LARGURA / 2,
-      by + 100,
-    );
+    ctx.fillText("O progresso da luta será perdido.", LARGURA / 2, by + 100);
 
     const labels = ["Sim", "Não"];
     const bwBtn = 160,
@@ -2171,7 +2327,12 @@ class Jogo {
       const sy = baseY + 1.5 * passo + 6;
       ctx.save();
       ctx.globalAlpha = sepRev * 0.6;
-      const sg = ctx.createLinearGradient(LARGURA / 2 - 200, 0, LARGURA / 2 + 200, 0);
+      const sg = ctx.createLinearGradient(
+        LARGURA / 2 - 200,
+        0,
+        LARGURA / 2 + 200,
+        0,
+      );
       sg.addColorStop(0, "rgba(177,92,255,0)");
       sg.addColorStop(0.5, PALETA.acento);
       sg.addColorStop(1, "rgba(177,92,255,0)");
@@ -2337,8 +2498,9 @@ class Jogo {
     for (let i = 0; i < 34; i++) {
       const semente = i * 127.3;
       const vel = 24 + (i % 7) * 9;
-      const yy = ALTURA - ((agora / 1000) * vel + semente * 13) % (ALTURA + 60);
-      const xx = (semente * 71) % LARGURA + Math.sin(agora / 700 + i) * 14;
+      const yy =
+        ALTURA - (((agora / 1000) * vel + semente * 13) % (ALTURA + 60));
+      const xx = ((semente * 71) % LARGURA) + Math.sin(agora / 700 + i) * 14;
       const a = 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(agora / 400 + i));
       ctx.globalAlpha = a * (yy / ALTURA);
       ctx.fillStyle = i % 3 === 0 ? SELECT_TEMA.ouro : "#ff7a3a";
@@ -2491,7 +2653,12 @@ class Jogo {
         const sy = by + Math.random() * (bh - 14);
         ctx.fillStyle = i % 2 === 0 ? tema.cor : SELECT_TEMA.ouro;
         ctx.globalAlpha = 0.5 * f;
-        ctx.fillRect(bx + (Math.random() - 0.5) * 16, sy, bw, 5 + Math.random() * 8);
+        ctx.fillRect(
+          bx + (Math.random() - 0.5) * 16,
+          sy,
+          bw,
+          5 + Math.random() * 8,
+        );
       }
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
@@ -2520,7 +2687,11 @@ class Jogo {
       ctx.shadowBlur = 10;
       ctx.fillStyle = "#ffffff";
       ctx.font = "900 26px 'Segoe UI', sans-serif";
-      ctx.fillText(this.recursos.nome(cel.pers).toUpperCase(), cx, by + bh + 30);
+      ctx.fillText(
+        this.recursos.nome(cel.pers).toUpperCase(),
+        cx,
+        by + bh + 30,
+      );
       ctx.restore();
       // Cidade + estilo de luta.
       ctx.fillStyle = SELECT_TEMA.ouro;
@@ -2531,9 +2702,21 @@ class Jogo {
       // Barras de atributo.
       const aY = by + bh + 78;
       this._barraAtributo(ctx, cx, aY, "FORÇA", info.atributos.forca);
-      this._barraAtributo(ctx, cx, aY + 17, "VELOC.", info.atributos.velocidade);
+      this._barraAtributo(
+        ctx,
+        cx,
+        aY + 17,
+        "VELOC.",
+        info.atributos.velocidade,
+      );
       this._barraAtributo(ctx, cx, aY + 34, "DEFESA", info.atributos.defesa);
-      this._barraAtributo(ctx, cx, aY + 51, "ESPECIAL", info.atributos.especial);
+      this._barraAtributo(
+        ctx,
+        cx,
+        aY + 51,
+        "ESPECIAL",
+        info.atributos.especial,
+      );
       this._estrelasDificuldade(ctx, cx, aY + 70, info.dificuldade);
       // Frase de lore.
       ctx.textAlign = "center";
@@ -2626,7 +2809,10 @@ class Jogo {
         ctx.fillStyle = "#cfc6e0";
         ctx.font = "bold 11px 'Segoe UI', sans-serif";
         ctx.textAlign = "center";
-        const primeiro = this.recursos.nome(cel.pers).split(" ")[0].toUpperCase();
+        const primeiro = this.recursos
+          .nome(cel.pers)
+          .split(" ")[0]
+          .toUpperCase();
         ctx.fillText(primeiro, x + w / 2, y + th + 12);
       } else if (cel.tipo === "random") {
         this._desenharCelulaAleatoria(ctx, x, y, w, th, agora);
@@ -2663,7 +2849,12 @@ class Jogo {
 
   // Cursor animado de um jogador sobre sua célula atual.
   _cursorSelect(ctx, slot, agora) {
-    if (slot === "p2" && this.modo === "1p" && !this.confirmado.p2 && this.confirmado.p1)
+    if (
+      slot === "p2" &&
+      this.modo === "1p" &&
+      !this.confirmado.p2 &&
+      this.confirmado.p1
+    )
       return;
     const S = this.select;
     const tema = SELECT_TEMA[slot];
@@ -2671,7 +2862,9 @@ class Jogo {
     const confirmado = this.confirmado[slot];
     // P1 colado na célula; P2 um pouco mais externo (visível mesmo sobreposto).
     const out = slot === "p1" ? 3 : 7;
-    const osc = confirmado ? 0 : Math.round(2 * (0.5 + 0.5 * Math.sin(agora / 150)));
+    const osc = confirmado
+      ? 0
+      : Math.round(2 * (0.5 + 0.5 * Math.sin(agora / 150)));
     const cx = x - out - osc,
       cy = y - out - osc,
       cw = w + (out + osc) * 2,
@@ -2756,8 +2949,12 @@ class Jogo {
     if (this.crt) {
       this._scanlines(ctx);
       const vg = ctx.createRadialGradient(
-        LARGURA / 2, ALTURA / 2, ALTURA * 0.35,
-        LARGURA / 2, ALTURA / 2, ALTURA * 0.78,
+        LARGURA / 2,
+        ALTURA / 2,
+        ALTURA * 0.35,
+        LARGURA / 2,
+        ALTURA / 2,
+        ALTURA * 0.78,
       );
       vg.addColorStop(0, "rgba(0,0,0,0)");
       vg.addColorStop(1, "rgba(0,0,0,0.6)");
@@ -2992,7 +3189,15 @@ class Jogo {
         ctx.strokeStyle = on ? "#5cd6ff" : "#ffffff";
         ctx.lineWidth = 4;
         ctx.strokeRect(x - 3, y - 3, cellW + 6, cellH + 6);
-        this._cantosPixel(ctx, x - 3, y - 3, cellW + 6, cellH + 6, 4, on ? "#ffffff" : "#5cd6ff");
+        this._cantosPixel(
+          ctx,
+          x - 3,
+          y - 3,
+          cellW + 6,
+          cellH + 6,
+          4,
+          on ? "#ffffff" : "#5cd6ff",
+        );
       }
     }
 
@@ -3070,7 +3275,15 @@ class Jogo {
     this._barraVida(ctx, 30, y, w, h, this.p1.hp, false);
     this._barraVida(ctx, LARGURA - 30 - w, y, w, h, this.p2.hp, true);
     this._barraEspecial(ctx, 30, y + h + 4, w, 8, this.p1.especial, false);
-    this._barraEspecial(ctx, LARGURA - 30 - w, y + h + 4, w, 8, this.p2.especial, true);
+    this._barraEspecial(
+      ctx,
+      LARGURA - 30 - w,
+      y + h + 4,
+      w,
+      8,
+      this.p2.especial,
+      true,
+    );
     this._pipsRounds(ctx, 36, y + h + 24, this.roundsP1, false);
     this._pipsRounds(ctx, LARGURA - 36, y + h + 24, this.roundsP2, true);
   }
@@ -3161,4 +3374,3 @@ class Jogo {
     }
   }
 }
-
