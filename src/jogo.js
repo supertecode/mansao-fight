@@ -2053,7 +2053,7 @@ class Jogo {
     ctx.fillRect(bx - 6, by - 6, bw + 12, bh + 12);
     const foto = this.recursos.retrato(pers);
     if (foto) {
-      this._desenharThumb(ctx, foto, bx, by, bw, bh);
+      this._desenharThumb(ctx, foto, bx, by, bw, bh, 0.1);
     } else {
       ctx.fillStyle = "#140d1f";
       ctx.fillRect(bx, by, bw, bh);
@@ -2603,7 +2603,7 @@ class Jogo {
         const dw = foto.width * escala,
           dh = foto.height * escala;
         ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(foto, cx - dw / 2, by + (bh - dh) / 2, dw, dh);
+        ctx.drawImage(foto, cx - dw / 2, by + (bh - dh) * 0.1, dw, dh);
       } else {
         const fr = this.recursos.frame(cel.pers, "idle", 0);
         if (fr && fr.ok) {
@@ -2793,7 +2793,7 @@ class Jogo {
       if (cel.tipo === "pers") {
         const foto = this.recursos.retrato(cel.pers);
         if (foto && foto.width) {
-          this._desenharThumb(ctx, foto, x, y, w, th);
+          this._desenharThumb(ctx, foto, x, y, w, th, 0.1);
         } else {
           const fr = this.recursos.frame(cel.pers, "idle", 0);
           ctx.fillStyle = "#0c0a18";
@@ -2849,12 +2849,8 @@ class Jogo {
 
   // Cursor animado de um jogador sobre sua célula atual.
   _cursorSelect(ctx, slot, agora) {
-    if (
-      slot === "p2" &&
-      this.modo === "1p" &&
-      !this.confirmado.p2 &&
-      this.confirmado.p1
-    )
+    // Em 1P, esconde o cursor da CPU apenas na fase 1 (antes de P1 confirmar).
+    if (slot === "p2" && this.modo === "1p" && !this.confirmado.p1)
       return;
     const S = this.select;
     const tema = SELECT_TEMA[slot];
@@ -2879,7 +2875,7 @@ class Jogo {
     this._cantosPixel(ctx, cx, cy, cw, ch, 4, cor);
 
     // Etiqueta do jogador na quina.
-    const tag = slot === "p1" ? "1P" : "2P";
+    const tag = slot === "p1" ? "1P" : this.modo === "1p" ? "CPU" : "2P";
     ctx.fillStyle = cor;
     ctx.fillRect(cx - 2, cy - 16, 24, 16);
     ctx.fillStyle = "#0a0712";
@@ -3069,7 +3065,10 @@ class Jogo {
   // cobrir todo o retângulo e recorta o excedente (sem barras pretas). Como os
   // mapas são bem largos (1920×540), isso mostra o miolo do estágio cheio na
   // célula. O clip garante que o excedente não vaze para fora da borda.
-  _desenharThumb(ctx, img, x, y, w, h) {
+  // topBias: 0 = topo, 0.5 = centro (padrão), 1 = base.
+  // Use 0.5 para mapas/cenários; valores menores (ex.: 0.1) para retratos de
+  // personagens, evitando que a cabeça seja cortada pelo recorte "cover".
+  _desenharThumb(ctx, img, x, y, w, h, topBias = 0.5) {
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, w, h);
@@ -3081,7 +3080,7 @@ class Jogo {
       const dw = img.width * escala;
       const dh = img.height * escala;
       ctx.imageSmoothingEnabled = true; // downscale suave fica melhor
-      ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+      ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) * topBias, dw, dh);
     }
     ctx.restore();
   }

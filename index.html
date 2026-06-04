@@ -1,35 +1,35 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Mansão Fight — Samuel vs Vitor</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <!-- Moldura do jogo. Todo o desenho acontece dentro do <canvas>. -->
-  <div id="moldura">
-    <canvas id="tela" width="960" height="540"></canvas>
-    <!-- Aviso exibido apenas se o manifest não puder ser carregado (ex.: file:// no Chrome). -->
-    <div id="aviso" class="oculto"></div>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mansão Fight</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- Moldura do jogo. Todo o desenho acontece dentro do <canvas>. -->
+    <div id="moldura">
+      <canvas id="tela" width="960" height="540"></canvas>
+      <!-- Aviso exibido apenas se o manifest não puder ser carregado (ex.: file:// no Chrome). -->
+      <div id="aviso" class="oculto"></div>
+    </div>
 
-  <!-- Lógica do jogo, dividida em módulos. São <script> CLÁSSICOS (sem
+    <!-- Lógica do jogo, dividida em módulos. São <script> CLÁSSICOS (sem
        type=module): compartilham o mesmo escopo global, então as classes/consts
        de um arquivo enxergam os dos anteriores. A ORDEM importa — cada arquivo
        só usa o que foi declarado acima dele; main.js (último) dá o boot. -->
-  <script src="src/config.js"></script>
-  <script src="src/constantes.js"></script>
-  <script src="src/recursos.js"></script>
-  <script src="src/mapas.js"></script>
-  <script src="src/animator.js"></script>
-  <script src="src/controles.js"></script>
-  <script src="src/particulas.js"></script>
-  <script src="src/audio.js"></script>
-  <script src="src/projetil.js"></script>
-  <script src="src/fighter.js"></script>
-  <script src="src/selecao.js"></script>
-  <script src="src/jogo.js"></script>
-  <script src="src/main.js"></script>
-</body>
+    <script src="src/config.js"></script>
+    <script src="src/constantes.js"></script>
+    <script src="src/recursos.js"></script>
+    <script src="src/mapas.js"></script>
+    <script src="src/animator.js"></script>
+    <script src="src/controles.js"></script>
+    <script src="src/particulas.js"></script>
+    <script src="src/audio.js"></script>
+    <script src="src/projetil.js"></script>
+    <script src="src/fighter.js"></script>
+    <script src="src/selecao.js"></script>
+    <script src="src/jogo.js"></script>
+    <script src="src/main.js"></script>
+  </body>
 </html>
