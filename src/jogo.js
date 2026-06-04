@@ -270,11 +270,35 @@ class Jogo {
       this.p1.atualizar(dt, false);
       this.p2.atualizar(dt, false);
       this.particulas.atualizar(dt);
-      if (this.entrada.confirmar) {
+
+      const gp = this.gamepad.ler();
+
+      // Navegação entre as opções (W/S, setas, analógico).
+      const subiu  = this.entrada.borda("KeyW") || this.entrada.borda("ArrowUp")   || (gp && gp.up);
+      const desceu = this.entrada.borda("KeyS") || this.entrada.borda("ArrowDown") || (gp && gp.down);
+      if (subiu || desceu) {
+        this.vitoMenu = this.vitoMenu === 0 ? 1 : 0;
+        this.somUI.tocar("navegar");
+      }
+
+      // Confirmar opção selecionada (Enter, F, botão A).
+      if (this.entrada.confirmar || this.entrada.borda(TECLAS.p1.soco) || (gp && gp.confirm)) {
         this.somUI.tocar("confirmar");
+        if (this.vitoMenu === 0) {
+          this._comecarLutaAposVS(); // mesmos lutadores e mapa
+        } else {
+          this.musica.tocar("menu");
+          this._entrarModo();
+        }
+      }
+
+      // ESC → menu principal diretamente.
+      if (this.entrada.voltar || (gp && gp.back)) {
+        this.somUI.tocar("voltar");
         this.musica.tocar("menu");
         this._entrarModo();
       }
+
       this.entrada.limparPendentes();
       return;
     }
@@ -352,6 +376,7 @@ class Jogo {
       this.particulas.atualizar(dt);
       if (this.timerFase > 2.6) {
         if (this.vencedorPartida) {
+          this.vitoMenu = 0; // 0 = jogar novamente, 1 = menu principal
           this.tela = TELAS.VITORIA;
           this.musica.tocar("vitoria");
         } else {
@@ -1598,12 +1623,41 @@ class Jogo {
 
   _desenharVitoria(ctx) {
     const v = this.vencedorPartida === "p1" ? this.p1 : this.p2;
-    this._textoCentral(
-      ctx,
-      v.nome.toUpperCase() + " VENCEU!",
-      "Pressione ENTER para jogar de novo",
-      "#ffd34d",
-    );
+    const agora = performance.now();
+    const CY = ALTURA / 2;
+
+    // Faixa semitransparente de fundo para legibilidade.
+    ctx.fillStyle = "rgba(0,0,0,0.52)";
+    ctx.fillRect(0, CY - 66, LARGURA, 210);
+
+    // Nome do vencedor.
+    ctx.textAlign = "center";
+    ctx.font = "900 42px 'Segoe UI', sans-serif";
+    ctx.shadowColor = PALETA.ouro;
+    ctx.shadowBlur = 28;
+    ctx.fillStyle = PALETA.ouro;
+    ctx.fillText(v.nome.toUpperCase() + " VENCEU!", LARGURA / 2, CY - 14);
+    ctx.shadowBlur = 0;
+
+    // Opções do menu pós-luta.
+    const opcoes = ["JOGAR NOVAMENTE", "MENU PRINCIPAL"];
+    const opcoesY = [CY + 32, CY + 76];
+
+    for (let i = 0; i < opcoes.length; i++) {
+      const sel = i === this.vitoMenu;
+      const piscando = sel && Math.floor(agora / 280) % 2 === 0;
+      ctx.font = sel ? "900 24px 'Segoe UI', sans-serif" : "bold 20px 'Segoe UI', sans-serif";
+      ctx.fillStyle = sel ? (piscando ? PALETA.ouro : "#ffffff") : PALETA.textoFraco;
+      ctx.shadowColor = sel ? PALETA.ouro : "transparent";
+      ctx.shadowBlur = sel ? 18 : 0;
+      ctx.fillText((sel ? "► " : "  ") + opcoes[i], LARGURA / 2, opcoesY[i]);
+    }
+    ctx.shadowBlur = 0;
+
+    // Dica de navegação no rodapé.
+    ctx.fillStyle = "rgba(155,144,181,0.55)";
+    ctx.font = "13px 'Segoe UI', sans-serif";
+    ctx.fillText("W / S para navegar   •   ENTER confirma   •   ESC volta ao menu", LARGURA / 2, ALTURA - 16);
   }
 
   // ---- Tela inicial (título) -----------------------------------------------
