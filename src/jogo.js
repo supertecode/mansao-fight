@@ -1,7 +1,9 @@
 "use strict";
 
 class Jogo {
-  constructor(canvas, recursos, catalogo) {
+  // musica e somUI podem ser passados pré-carregados pelo main.js (loading screen).
+  // Se omitidos, cria internamente (comportamento legado).
+  constructor(canvas, recursos, catalogo, musica = null, somUI = null) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.recursos = recursos;
@@ -10,10 +12,10 @@ class Jogo {
     this.gamepad = new GamepadNav(); // navegação por controle nos menus
     this.particulas = new Particulas();
     this.audio = new AudioFX();
-    this.musica = new MusicaFX();
-    this.musica.precarregar();
-    this.somUI = new SomUI();
-    this.somUI.precarregar();
+    this.musica = musica || new MusicaFX();
+    if (!musica) this.musica.precarregar();
+    this.somUI = somUI || new SomUI();
+    if (!somUI) this.somUI.precarregar();
     this.debug = false;
 
     this.tela = TELAS.APRESENTA;
@@ -45,6 +47,7 @@ class Jogo {
     this.flash = { a: 0, cor: "255,255,255", vel: 3.2 }; // clarão de transição global
     this.textoTech = null; // rótulo "TECH!" temporário ao defender agarrão
     this.cameraX = 0; // deslocamento horizontal da câmera no mundo (px)
+    this.cenario = null; // palco da luta (camadas de parallax + NPCs de fundo)
     this.menuIndex = 0; // navegação da tela MODO
     this.dificuldadeIndex = 0; // navegação da tela DIFICULDADE
     this.configIndex = 0; // navegação da tela CONFIG
@@ -154,6 +157,9 @@ class Jogo {
     const mapas = this.catalogo ? this.catalogo.mapas : [];
     if (!mapas.length) {
       this.mapaEscolhido = null;
+      // Sem mapa escolhido: o Cenário cai na imagem padrão (recursos.mapa) ou no
+      // fundo procedural — mesmo comportamento de antes.
+      this.cenario = new Cenario(null, this.recursos ? this.recursos.mapa : null);
       this._criarLutadores();
       this._iniciarVS();
       return;
@@ -166,6 +172,8 @@ class Jogo {
   _confirmarMapa(mapa) {
     this.mapaEscolhido = mapa;
     if (mapa && mapa.full) this.recursos.mapa = mapa.full; // estágio da LUTA
+    // Monta o palco: camadas de parallax + NPCs do mapa (ou imagem única/compat).
+    this.cenario = new Cenario(mapa, this.recursos ? this.recursos.mapa : null);
     this._criarLutadores(); // criados aqui para a VS já mostrar HUD e sprites
     this._iniciarVS();
   }
@@ -321,6 +329,7 @@ class Jogo {
 
     this._atualizarShake(dt);
     this._atualizarCamera(dt);
+    if (this.cenario) this.cenario.atualizar(dt); // anima NPCs de fundo
     this.timerFase += dt;
 
     if (this.faseRound === "anuncio") {
@@ -1395,6 +1404,7 @@ class Jogo {
       this.p1.desenhar(ctx, this.debug);
       this.p2.desenhar(ctx, this.debug);
       this.particulas.desenhar(ctx);
+      this._desenharArenaFrente(ctx); // camadas/NPCs de primeiro plano
       ctx.restore();
       if (this.crt) this._scanlines(ctx); // filtro CRT global sobre a arena
       this._desenharVitoria(ctx);
@@ -1430,6 +1440,7 @@ class Jogo {
       ctx.fillText("TECH!", tt.x, y);
       ctx.restore();
     }
+    this._desenharArenaFrente(ctx); // camadas/NPCs de primeiro plano
     ctx.restore();
 
     // Filtro CRT global sobre o mundo (HUD/anúncios/pause ficam nítidos acima).
@@ -1464,30 +1475,22 @@ class Jogo {
   // Fundo da ARENA inteira (largura = MUNDO_L). Desenhado sob a câmera.
   // Usa a imagem assets/mapas/arena.png se existir; senão, cai no procedural.
   _desenharArena(ctx) {
+    // Com o palco montado, ele cuida das camadas de fundo (parallax + NPCs).
+    if (this.cenario) {
+      this.cenario.desenharFundo(ctx, this.cameraX);
+      return;
+    }
+    // Compat (sem palco montado): imagem única esticada no mundo, ou procedural.
     if (this.recursos && this.recursos.mapa) {
-      // A imagem é esticada para ocupar o mundo inteiro (MUNDO_L x ALTURA).
-      // Para 1:1, exporte o PNG já em MUNDO_L x ALTURA (ex.: 1920x540).
       ctx.drawImage(this.recursos.mapa, 0, 0, MUNDO_L, ALTURA);
       return;
     }
+    Cenario.desenharProcedural(ctx);
+  }
 
-    // Fallback procedural: mesmo visual de antes, porém cobrindo todo o mundo.
-    const g = ctx.createLinearGradient(0, 0, 0, ALTURA);
-    g.addColorStop(0, "#2a1a3a");
-    g.addColorStop(0.6, "#1a1426");
-    g.addColorStop(1, "#0c0a14");
-    ctx.fillStyle = g;
-    ctx.fillRect(0, 0, MUNDO_L, ALTURA);
-
-    ctx.fillStyle = "rgba(255,240,200,0.12)";
-    ctx.beginPath();
-    ctx.arc(MUNDO_L * 0.78, 110, 70, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = "#211a2e";
-    ctx.fillRect(0, CHAO_Y, MUNDO_L, ALTURA - CHAO_Y);
-    ctx.fillStyle = "#3a2f4f";
-    ctx.fillRect(0, CHAO_Y, MUNDO_L, 6);
+  // Camadas/NPCs de PRIMEIRO PLANO (parallax > 1): passam na frente dos lutadores.
+  _desenharArenaFrente(ctx) {
+    if (this.cenario) this.cenario.desenharFrente(ctx, this.cameraX);
   }
 
   _barraVida(ctx, x, y, w, h, hp, daDireita) {

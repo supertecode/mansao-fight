@@ -63,9 +63,11 @@ class CatalogoMapas {
       if (res.ok) {
         faltasSeguidas = 0;
         vistos.add(arquivo);
-        achados.push(
-          this._descritor(arquivo, caminho, res.img, meta[arquivo], achados.length + 1),
+        const desc = this._descritor(
+          arquivo, caminho, res.img, meta[arquivo], achados.length + 1,
         );
+        await this._carregarExtras(desc, meta[arquivo]);
+        achados.push(desc);
       } else {
         faltasSeguidas++;
       }
@@ -81,7 +83,9 @@ class CatalogoMapas {
         const res = await carregarImagem(caminho);
         if (res.ok) {
           vistos.add(m.arquivo);
-          achados.push(this._descritor(m.arquivo, caminho, res.img, m, achados.length + 1));
+          const desc = this._descritor(m.arquivo, caminho, res.img, m, achados.length + 1);
+          await this._carregarExtras(desc, m);
+          achados.push(desc);
         }
       }
     }
@@ -103,7 +107,46 @@ class CatalogoMapas {
       full: img, // Image já carregada da imagem completa
       caminhoThumb: caminho, // a miniatura é gerada da imagem cheia
       thumb: gerarMiniatura(img, 320, 180), // <canvas> 16:9 com letterbox
+      // Camadas de PARALLAX e NPCs de fundo (preenchidos por _carregarExtras a
+      // partir do manifest). Vazios por padrão => Cenário cai na imagem única.
+      camadas: [], // [{ img, parallax, frente }]
+      npcs: [], // [{ def, frames:[Image,...] }]
     };
+  }
+
+  /* Carrega (opcionalmente) as CAMADAS de parallax e os NPCs de fundo declarados
+     no metadado do mapa (manifest/mapas.json). Tudo é OPCIONAL: se o mapa não
+     declarar nada, desc.camadas/desc.npcs ficam vazios e o Cenário usa a imagem
+     única (comportamento idêntico ao anterior). Imagens ausentes são ignoradas
+     (sem placeholder quebrado), então dá para ir adicionando a arte aos poucos. */
+  async _carregarExtras(desc, meta) {
+    meta = meta || {};
+
+    // CAMADAS — PNGs do tamanho do mundo (MUNDO_L x ALTURA) em assets/mapas/.
+    if (Array.isArray(meta.camadas)) {
+      for (const c of meta.camadas) {
+        if (!c || !c.arquivo) continue;
+        const res = await carregarImagem(`assets/mapas/${c.arquivo}`);
+        if (res.ok) {
+          desc.camadas.push({ img: res.img, parallax: c.parallax, frente: c.frente });
+        }
+      }
+    }
+
+    // NPCs — sprites em assets/cenarios/<sprite>_<i>.png (sequência a partir de 0).
+    if (Array.isArray(meta.npcs)) {
+      for (const n of meta.npcs) {
+        if (!n || !n.sprite) continue;
+        const total = n.frames || 1;
+        const frames = [];
+        for (let i = 0; i < total; i++) {
+          const res = await carregarImagem(`assets/cenarios/${n.sprite}_${i}.png`);
+          if (!res.ok) break; // para na 1ª ausência (sequência contígua)
+          frames.push(res.img);
+        }
+        if (frames.length) desc.npcs.push({ def: n, frames });
+      }
+    }
   }
 }
 

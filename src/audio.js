@@ -123,23 +123,33 @@ class MusicaFX {
     this.ligado = true;
   }
 
-  // Pré-carrega as três trilhas (chamado antes de iniciar o jogo).
+  // Pré-carrega as trilhas e retorna uma Promise que resolve quando todas estão
+  // prontas para tocar (evento canplay) ou após timeout de segurança de 8s.
   precarregar() {
     const arquivos = {
       menu: "assets/audio/musica_menu.mp3",
       luta: "assets/audio/musica_luta.mp3",
       vitoria: "assets/audio/musica_vitoria.mp3",
-      // Trilha EXCLUSIVA da VS Screen (não reutiliza nenhuma já existente).
-      // Solte o arquivo abaixo em assets/audio/ — se faltar, a VS roda sem música.
       vs: "assets/audio/musica_vs.mp3",
     };
+    const promessas = [];
     for (const [nome, src] of Object.entries(arquivos)) {
       const audio = new Audio(src);
       audio.loop = true;
       audio.volume = CONFIG.audio.volumeMusica;
       audio.preload = "auto";
       this.trilhas[nome] = audio;
+      promessas.push(
+        new Promise((resolve) => {
+          let resolvido = false;
+          const ok = () => { if (!resolvido) { resolvido = true; resolve(); } };
+          audio.addEventListener("canplay", ok, { once: true });
+          audio.addEventListener("error", ok, { once: true });
+          setTimeout(ok, 8000); // garante que não trava indefinidamente
+        }),
+      );
     }
+    return Promise.all(promessas);
   }
 
   // Toca a trilha indicada; se já estiver tocando, não reinicia.
@@ -202,6 +212,8 @@ class SomUI {
     this.sons = {};
   }
 
+  // Pré-carrega os efeitos e retorna uma Promise que resolve quando todos estão
+  // prontos (canplay/error) ou após timeout de 8s.
   precarregar() {
     const arquivos = {
       confirmar: "assets/audio/sfx_confirmar.mp3",
@@ -210,11 +222,22 @@ class SomUI {
       selecionar: "assets/audio/sfx_selecionar.mp3",
       voltar: "assets/audio/sfx_voltar.mp3",
     };
+    const promessas = [];
     for (const [nome, src] of Object.entries(arquivos)) {
       const audio = new Audio(src);
       audio.preload = "auto";
       this.sons[nome] = audio;
+      promessas.push(
+        new Promise((resolve) => {
+          let resolvido = false;
+          const ok = () => { if (!resolvido) { resolvido = true; resolve(); } };
+          audio.addEventListener("canplay", ok, { once: true });
+          audio.addEventListener("error", ok, { once: true });
+          setTimeout(ok, 8000);
+        }),
+      );
     }
+    return Promise.all(promessas);
   }
 
   // Toca o efeito indicado. Reinicia do início para poder disparar rapidamente.

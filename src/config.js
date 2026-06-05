@@ -424,7 +424,7 @@ const PALETA = {
   texto: "#cfc6e0",
   textoFraco: "#9b90b5",
 };
-const VERSAO = "v0.3.1";
+const VERSAO = "v0.3.2";
 const CREDITOS = "© 2026 · MANSÃO FIGHT";
 
 /* FRAME DATA POR PERSONAGEM — fonte de balanceamento = manifest.json.

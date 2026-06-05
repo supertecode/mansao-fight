@@ -119,8 +119,20 @@ async function iniciar() {
     return;
   }
 
-  // Etapa 2: sprites, retratos e mapa padrão (5% → 85%)
+  // Etapa 2: sprites + áudio em paralelo (5% → 85%)
+  // O áudio começa a baixar junto com os sprites; quando ambos terminam o
+  // progresso avança. Numa máquina lenta isso garante que o áudio já está em
+  // buffer antes de o jogador interagir com qualquer coisa.
   const recursos = new Recursos(manifest);
+  const musica = new MusicaFX();
+  const somUI = new SomUI();
+
+  // Progresso de sprites (peso 80%) e áudio (peso 0% na barra — paralelo mas
+  // sem bloquear visualmente; resolve antes de avançar para a etapa 3).
+  let audioCarregado = false;
+  const promessaAudio = Promise.all([musica.precarregar(), somUI.precarregar()])
+    .then(() => { audioCarregado = true; });
+
   await recursos.precarregar((p) => {
     progresso = 0.05 + p * 0.80;
   });
@@ -139,13 +151,18 @@ async function iniciar() {
 
   progresso = 1.0;
 
+  // Aguarda o áudio ficar pronto (normalmente já terminou junto com os sprites;
+  // numa máquina lenta pode levar mais alguns ms, mas nunca mais de 8s).
+  await promessaAudio;
+  if (!audioCarregado) console.warn("Áudio não carregou a tempo — tentando mesmo assim.");
+
   // Pequena pausa para mostrar barra cheia antes de avançar
   await new Promise((r) => setTimeout(r, 380));
 
   carregando = false;
 
-  // ---- Inicia o jogo (começa em TELAS.APRESENTA) ----
-  const jogo = new Jogo(canvas, recursos, catalogo);
+  // ---- Inicia o jogo (instâncias de áudio pré-carregadas passadas direto) ----
+  const jogo = new Jogo(canvas, recursos, catalogo, musica, somUI);
   jogo.rodar();
 }
 
